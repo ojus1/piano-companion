@@ -89,3 +89,31 @@ select { font: inherit; min-height: 48px; padding: 0 12px; border-radius: 10px; 
 .star { border: none; background: transparent; font-size: 1.4em; padding: 0 8px; color: var(--muted); }
 .star.on { color: var(--accent); }
 button.danger { border-color: var(--bad); color: var(--bad); }
+.keyboard .target { box-shadow: inset 0 0 0 3px var(--ok); }
+.keyboard .white.target { background: color-mix(in srgb, var(--ok) 18%, #fafafa); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chip { min-height: 40px; padding: 0 14px; border-radius: 20px; position: relative; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.due-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-left: 6px; }
+.settings { gap: 10px; }
+.group-label { width: 90px; }
+.drill { gap: 8px; margin-top: 8px; }
+.drill-title { font-size: 1.5em; font-weight: 700; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.step { padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.step.chord { font-weight: 600; }
+.step.done { background: color-mix(in srgb, var(--ok) 25%, transparent); border-color: var(--ok); }
+.step.current { border: 2px solid var(--accent); font-weight: 700; }
+.controls { margin: 12px 0; }
+.big-btn { min-width: 140px; justify-content: center; font-size: 1.15em; }
+.beats { display: flex; gap: 8px; }
+.beat { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); }
+.beat.on { background: var(--accent); border-color: var(--accent); }
+.beat.on.accent { background: var(--warn); border-color: var(--warn); }
+.bpm { min-width: 80px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.volume { flex: 0 0 120px; padding: 0; min-height: 0; }
+.grade { font-weight: 700; padding: 4px 12px; border-radius: 10px; border: 2px solid var(--line); }
+.grade.r1 { border-color: var(--bad); color: var(--bad); } .grade.r2 { border-color: var(--warn); color: var(--warn); }
+.grade.r3 { border-color: var(--ok); color: var(--ok); } .grade.r4 { border-color: var(--accent); color: var(--accent); }
+.big-grade { font-size: 1.6em; }
+.result { margin-bottom: 8px; }

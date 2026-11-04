@@ -78,14 +78,31 @@ backend/src/piano_companion/
   curriculum.py      loads curriculum.json from the data dir
   grading.py         curriculum grading rules: metrics -> Again/Hard/Good/Easy
   alignment.py       partitura + parangonar score alignment -> attempt metrics
+  technique.py       scores technique drills (scales, arpeggios, chords) from live MIDI notes
   seed.py            piano-companion-seed: catalog + stages -> pieces + practice items
   render.py          piano-companion-render: LilyPond -> PDF + MIDI
   service.py         wires capture → files → DB → WebSocket
   api/routes.py      REST + /api/live
   tools/fake_piano.py  plays a scale/MIDI file into a virtual port for testing
 app/src/
-  api.ts, hooks.ts (live socket, wake lock), midi.ts (+ tests)
-  pages/Today, Library, Sessions, Live
+  api.ts, hooks.ts (live socket, note bus, wake lock), midi.ts (+ tests)
+  technique.ts (randomized drill generator, + tests) · metronome.ts (Web Audio click)
+  pages/Today, Technique, Library, Sessions, Live
   components/ScoreViewer (OSMD) · PdfScore (EmbedPDF + annotations) · MidiPlayer (smplr + piano roll)
 deploy/  bootstrap-pi.sh · deploy.sh · piano-companion.service
 ```
+
+## Technique drills
+
+The Technique tab generates a random drill from the families you enable (five-finger patterns; major, minor,
+hands-together, contrary-motion and chromatic scales; root, inverted and seventh arpeggios; Alberti bass;
+triad and seventh-chord inversions; chord symbols) in a random key and at a random BPM inside the family's
+range, scaled by the Slow/Medium/Fast setting. A one-bar count-in on the built-in metronome starts it.
+
+Each family maps to a curriculum concept-graph node (e.g. `t_scales_major_hs`, `th_triads`). Notes come from
+the live socket with the Pi's monotonic timestamp (`t`), so Wi-Fi jitter doesn't affect timing. The tablet
+posts them with the expected steps to `POST /api/technique/attempts`, which aligns them (order-preserving,
+chords grouped by onset), computes accuracy, achieved BPM, evenness (IBI CV) and stops, and grades with the
+curriculum's technique rules (`grading.grade_attempt(technique=True)`). Every attempt is logged in
+`techniqueattempt`; the grade becomes the concept card's FSRS review only when that card is due, so drilling
+a skill several times a day doesn't distort its schedule. Due concepts come up three times as often.

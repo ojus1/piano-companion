@@ -410,7 +410,8 @@ class MidiCapture:
                         for msg in port.iter_pending():
                             self.route(msg)
                             if msg.type in ("note_on", "note_off", "control_change"):
-                                self.broadcast({"type": "midi", **msg.dict()})
+                                # t: Pi monotonic seconds, so the tablet can time drills without network jitter.
+                                self.broadcast({"type": "midi", **msg.dict(), "t": round(time.monotonic(), 4)})
                         self._tick()
                         if name not in mido.get_input_names():
                             raise OSError("port disappeared")

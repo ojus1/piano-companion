@@ -22,7 +22,7 @@ from sqlmodel import Session, col, select
 from .. import srs
 from ..config import get_settings
 from ..db import get_session
-from ..models import Performance, Piece, PracticeItem, PracticeSession, Review, utcnow
+from ..models import Performance, Piece, PracticeItem, PracticeSession, Review, TechniqueAttempt, utcnow
 
 router = APIRouter(prefix="/api")
 
@@ -407,6 +407,111 @@ def autograde_item(iid: int, body: AutoGradeIn, db: Session = Depends(get_sessio
     if body.apply:
         _apply_review(db, item, rating, sess.id, {"auto": True, "metrics": metrics})
     return {"rating": rating, "metrics": metrics, "session_id": sess.id, "applied": body.apply}
+
+
+# ---------- technique drills (randomized scales, arpeggios, chords from the tablet) ----------
+
+
+class PlayedNote(BaseModel):
+    note: int
+    t: float  # seconds; the Pi's monotonic clock from the live feed
+
+
+class TechniqueAttemptIn(BaseModel):
+    family: str
+    title: str
+    concept_id: str | None = None
+    bpm: float
+    steps_per_beat: float = 1.0
+    steps: list[list[int]]  # expected pitches per step, in order
+    notes: list[PlayedNote]
+    match: str = "pitch"  # "pitch_class": any octave/inversion counts (chord-symbol drills)
+    drill: dict = {}
+
+
+def _concept_item(db: Session, concept_id: str, fallback_title: str) -> PracticeItem:
+    """The FSRS card for a curriculum technique concept; created if the seed hasn't added it yet."""
+    from .. import curriculum
+
+    key = f"concept:{concept_id}"
+    item = db.exec(select(PracticeItem).where(PracticeItem.source_key == key)).first()
+    if item:
+        return item
+    node = next(
+        (n for n in curriculum.load().get("concept_graph", {}).get("nodes", []) if n.get("id") == concept_id), {}
+    )
+    item = PracticeItem(
+        kind=node.get("domain", "technique"),
+        title=node.get("name", fallback_title),
+        source_key=key,
+        details={
+            "concept_id": concept_id,
+            "prerequisites": node.get("prerequisites", []),
+            "midi_check": node.get("midi_check"),
+        },
+        srs_state=srs.new_state(),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/technique/attempts", status_code=201)
+def technique_attempt(body: TechniqueAttemptIn, db: Session = Depends(get_session)):
+    """Grade one run through a drill from its MIDI notes.
+
+    Every attempt is logged. The grade becomes the concept's FSRS review only when that card is due,
+    so drilling a skill several times a day doesn't push its schedule around (one review per item per day).
+    """
+    from .. import curriculum
+    from ..grading import Thresholds, grade_attempt
+    from ..technique import Played, score_attempt
+
+    if body.bpm <= 0 or body.steps_per_beat <= 0 or not body.steps:
+        raise HTTPException(422, "bpm, steps_per_beat and steps are required")
+    notes = [Played(n.note, n.t) for n in body.notes]
+    attempt, metrics = score_attempt(
+        body.steps, notes, body.bpm, body.steps_per_beat, pitch_class=body.match == "pitch_class"
+    )
+    t = Thresholds.from_curriculum(curriculum.scheduler_defaults().get("grading", {}))
+    rating = grade_attempt(attempt, technique=True, t=t)
+
+    item, applied = None, False
+    if body.concept_id:
+        item = _concept_item(db, body.concept_id, body.title)
+        due = item.due if item.due.tzinfo else item.due.replace(tzinfo=UTC)
+        if due <= utcnow():
+            _apply_review(db, item, rating, None, {"auto": True, "technique_drill": body.title, "metrics": metrics})
+            applied = True
+    row = TechniqueAttempt(
+        family=body.family,
+        concept_id=body.concept_id,
+        title=body.title,
+        bpm=body.bpm,
+        drill={**body.drill, "steps_per_beat": body.steps_per_beat, "steps": body.steps, "match": body.match},
+        metrics=metrics,
+        rating=rating,
+        practice_item_id=item.id if item else None,
+        applied=applied,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {
+        "id": row.id,
+        "rating": rating,
+        "metrics": metrics,
+        "applied": applied,
+        "practice_item_id": row.practice_item_id,
+        "next_due": item.due if item else None,
+    }
+
+
+@router.get("/technique/attempts")
+def technique_attempts(limit: int = 30, db: Session = Depends(get_session)):
+    q = select(TechniqueAttempt).order_by(col(TechniqueAttempt.created_at).desc()).limit(limit)
+    return [{k: v for k, v in a.model_dump().items() if k != "drill"} for a in db.exec(q).all()]
 
 
 # ---------- play MIDI on the piano itself ----------

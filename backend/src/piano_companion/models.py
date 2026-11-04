@@ -100,3 +100,20 @@ class Performance(SQLModel, table=True):
     metrics: dict = Field(default_factory=dict, sa_column=Column(JSON))
     favorite: bool = False
     notes: str | None = None
+
+
+class TechniqueAttempt(SQLModel, table=True):
+    """One run through a randomized technique drill (scale, arpeggio, chord sequence) from the tablet."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=utcnow, index=True)
+    family: str  # drill family on the tablet, e.g. scale_major, arpeggio_root, chord_inversions
+    concept_id: str | None = Field(default=None, index=True)  # curriculum concept-graph node, e.g. t_scales_major_hs
+    title: str
+    bpm: float
+    # The generated drill as the tablet described it (key, hands, octaves, steps, ...).
+    drill: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    metrics: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    rating: int  # suggested FSRS grade 1..4
+    practice_item_id: int | None = Field(default=None, foreign_key="practiceitem.id")
+    applied: bool = False  # True when the grade was applied as the concept's FSRS review

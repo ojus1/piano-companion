@@ -29,6 +29,7 @@ export interface PracticeItem {
   stage?: string | null;
   details: Record<string, unknown>;
   due: string;
+  active?: boolean;
   retrievability?: number;
   piece?: Piece | null;
 }
@@ -90,6 +91,49 @@ export interface Status {
   take?: TakeInfo | null;
 }
 
+export interface TechniqueResult {
+  id: number;
+  rating: 1 | 2 | 3 | 4;
+  metrics: {
+    accuracy: number;
+    tempo_ratio: number | null;
+    achieved_bpm: number | null;
+    ibi_cv: number | null;
+    timing_dev_ms: number | null;
+    breakdowns: number;
+    matched: number;
+    expected: number;
+    extra: number;
+  };
+  applied: boolean; // became the concept card's FSRS review (only when it was due)
+  practice_item_id: number | null;
+  next_due: string | null;
+}
+
+export interface TechniqueAttemptRow {
+  id: number;
+  created_at: string;
+  family: string;
+  concept_id: string | null;
+  title: string;
+  bpm: number;
+  rating: 1 | 2 | 3 | 4;
+  metrics: TechniqueResult["metrics"];
+  applied: boolean;
+}
+
+export interface TechniqueAttemptIn {
+  family: string;
+  title: string;
+  concept_id: string;
+  bpm: number;
+  steps_per_beat: number;
+  steps: number[][];
+  notes: { note: number; t: number }[];
+  match: "pitch" | "pitch_class";
+  drill: Record<string, unknown>;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`/api${path}`, init);
   if (!r.ok) throw new Error(`${init?.method ?? "GET"} ${path}: ${r.status}`);
@@ -133,6 +177,8 @@ export const api = {
     if (!r.ok) throw new Error(`DELETE /performances/${id}: ${r.status}`);
   },
   performanceMidiUrl: (id: number) => `/api/performances/${id}/midi`,
+  techniqueAttempt: (body: TechniqueAttemptIn) => req<TechniqueResult>("/technique/attempts", json("POST", body)),
+  techniqueAttempts: (limit = 20) => req<TechniqueAttemptRow[]>(`/technique/attempts?limit=${limit}`),
   libraryUrl: (rel: string) => `/api/library/${rel}`,
   sessionFileUrl: (id: number, kind: "midi" | "audio") => `/api/sessions/${id}/${kind}`,
 };

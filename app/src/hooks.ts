@@ -2,6 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { liveSocketUrl } from "./api";
 import { applyMidiEvent } from "./midi";
 
+export interface LiveNote {
+  note: number;
+  velocity: number;
+  t: number; // seconds on the Pi's monotonic clock (falls back to the tablet clock on older backends)
+}
+
+/** Every key press from the piano, for screens that need timing (technique drills). */
+export const noteBus = new EventTarget();
+
+export function onLiveNote(fn: (n: LiveNote) => void): () => void {
+  const h = (e: Event) => fn((e as CustomEvent<LiveNote>).detail);
+  noteBus.addEventListener("note", h);
+  return () => noteBus.removeEventListener("note", h);
+}
+
 export interface LiveState {
   connected: boolean;
   midiPort: string | null;
@@ -35,6 +50,12 @@ export function useLive(): LiveState {
       };
       ws.onmessage = (m) => {
         const ev = JSON.parse(m.data);
+        if (ev.type === "note_on" && ev.velocity > 0)
+          noteBus.dispatchEvent(
+            new CustomEvent<LiveNote>("note", {
+              detail: { note: ev.note, velocity: ev.velocity, t: ev.t ?? performance.now() / 1000 },
+            }),
+          );
         setS((p) => {
           if (ev.type === "status") return { ...p, midiPort: ev.midi ?? null };
           if (ev.type === "session")
