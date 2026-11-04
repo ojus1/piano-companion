@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { api } from "../api";
+import { api, type AutoGrade, type Piece } from "../api";
 import { useData } from "../hooks";
+import ScoreViewer from "../components/ScoreViewer";
 
 const RATINGS = [
   { r: 1, label: "Again", hint: "fell apart" },
@@ -13,11 +14,25 @@ export default function Today({ lastSaved }: { lastSaved: number | null }) {
   const queue = useData(api.queue);
   const stats = useData(api.stats, [lastSaved]);
   const [title, setTitle] = useState("");
+  const [open, setOpen] = useState<Piece | null>(null);
+  const [graded, setGraded] = useState<Record<number, AutoGrade | string>>({});
 
   const grade = async (id: number, r: 1 | 2 | 3 | 4) => {
     await api.review(id, r);
     queue.reload();
   };
+
+  const autograde = async (id: number) => {
+    try {
+      const g = await api.autograde(id, lastSaved ?? undefined);
+      setGraded((p) => ({ ...p, [id]: g }));
+      queue.reload();
+    } catch (e) {
+      setGraded((p) => ({ ...p, [id]: String(e) }));
+    }
+  };
+
+  if (open) return <ScoreViewer piece={open} onClose={() => setOpen(null)} />;
 
   const today = new Date().toLocaleDateString("en-CA");
   const minutesToday = stats.data?.minutes_by_day[today] ?? 0;
@@ -47,8 +62,21 @@ export default function Today({ lastSaved }: { lastSaved: number | null }) {
           <li key={item.id} className="item">
             <div>
               <div className="title">{item.title}</div>
-              <div className="muted">{item.kind.replace("_", " ")}</div>
+              <div className="muted">
+                {[item.stage, item.kind.replace("_", " "), item.details.role as string | undefined].filter(Boolean).join(" · ")}
+              </div>
+              {typeof graded[item.id] === "string" && <div className="error">{graded[item.id] as string}</div>}
             </div>
+            {item.piece && (
+              <div className="row">
+                <button onClick={() => setOpen(item.piece!)}>Score</button>
+                {(item.piece.musicxml_path || item.piece.midi_path) && (
+                  <button title="Grade your last recorded take against the score" onClick={() => autograde(item.id)}>
+                    Auto-grade last take
+                  </button>
+                )}
+              </div>
+            )}
             <div className="ratings">
               {RATINGS.map(({ r, label, hint }) => (
                 <button key={r} className={`rate r${r}`} title={hint} onClick={() => grade(item.id, r)}>

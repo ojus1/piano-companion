@@ -21,6 +21,13 @@ hw = [
   "sounddevice>=0.5",
   "soundfile>=0.12",
 ]
+# Score alignment and score parsing (MusicXML, MIDI, Humdrum **kern, MEI) for auto-grading.
+# partitura/parangonar: Apache-2.0, from the CP JKU group. tqdm is an undeclared parangonar import.
+align = [
+  "partitura>=1.9",
+  "parangonar>=3.4",
+  "tqdm>=4",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
@@ -28,6 +35,8 @@ dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
 [project.scripts]
 piano-companion = "piano_companion.main:run"
 fake-piano = "piano_companion.tools.fake_piano:main"
+piano-companion-seed = "piano_companion.seed:main"
+piano-companion-render = "piano_companion.render:main"
 
 [build-system]
 requires = ["hatchling"]

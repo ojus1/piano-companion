@@ -69,3 +69,39 @@ def test_recorder_saves_session_end_to_end(client):
 def test_live_socket_without_midi(client):
     with client.websocket_connect("/api/live") as ws:
         assert ws.receive_json() == {"type": "status", "midi": None}
+
+
+def test_annotated_pdf_roundtrip(client):
+    p = client.post("/api/pieces", json={"title": "Nocturne"}).json()
+    assert client.put(f"/api/pieces/{p['id']}/annotated-pdf", content=b"not a pdf").status_code == 415
+    r = client.put(f"/api/pieces/{p['id']}/annotated-pdf", content=b"%PDF-1.7 fake")
+    assert r.status_code == 200
+    assert client.get(f"/api/library/{r.json()['pdf_annotated_path']}").content == b"%PDF-1.7 fake"
+
+
+def test_play_without_piano(client):
+    assert client.post("/api/play", json={"piece_id": 999}).status_code == 404
+
+
+def test_adds_columns_to_an_old_database(tmp_path, monkeypatch):
+    import sqlite3
+
+    monkeypatch.setenv("PC_DATA_DIR", str(tmp_path))
+    con = sqlite3.connect(tmp_path / "piano.db")
+    con.execute("CREATE TABLE piece (id INTEGER PRIMARY KEY, title VARCHAR NOT NULL, tags JSON, created_at DATETIME)")
+    con.execute("INSERT INTO piece (title, tags) VALUES ('Old', '[]')")
+    con.commit()
+    con.close()
+    from piano_companion import config, db
+
+    config.get_settings.cache_clear()
+    db.reset_engine()
+    from sqlmodel import Session, select
+
+    from piano_companion.models import Piece
+
+    with Session(db.get_engine()) as s:
+        [p] = s.exec(select(Piece)).all()
+    assert p.title == "Old" and p.pdf_annotated_path is None
+    config.get_settings.cache_clear()
+    db.reset_engine()

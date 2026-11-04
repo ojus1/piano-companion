@@ -67,6 +67,7 @@ class SessionSegmenter:
         self.on_started = on_started
         self._active: _Active | None = None
         self._lock = threading.Lock()
+        self.paused = False  # set while the app itself plays MIDI to the piano
 
     @property
     def active(self) -> bool:
@@ -74,7 +75,7 @@ class SessionSegmenter:
 
     def feed(self, msg: mido.Message, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
-        if msg.type in ("clock", "active_sensing", "sysex"):
+        if msg.type in ("clock", "active_sensing", "sysex") or self.paused:
             return  # the P-155 sends active sensing constantly
         with self._lock:
             self._maybe_timeout_locked(now)
@@ -153,8 +154,18 @@ class SessionSegmenter:
         return path
 
 
+def find_output_port(pattern: str) -> str | None:
+    try:
+        return _pick(mido.get_output_names(), pattern)
+    except Exception:  # no ALSA sequencer
+        return None
+
+
 def find_input_port(pattern: str) -> str | None:
-    names = mido.get_input_names()
+    return _pick(mido.get_input_names(), pattern)
+
+
+def _pick(names: list[str], pattern: str) -> str | None:
     if pattern != "auto":
         return next((n for n in names if pattern.lower() in n.lower()), None)
     return next((n for n in names if "through" not in n.lower()), None)

@@ -1,6 +1,7 @@
 import { api } from "../api";
 import { useData } from "../hooks";
 import { formatDuration, noteName } from "../midi";
+import MidiPlayer from "../components/MidiPlayer";
 
 export default function Sessions({ lastSaved }: { lastSaved: number | null }) {
   const sessions = useData(api.sessions, [lastSaved]);
@@ -32,6 +33,7 @@ export default function Sessions({ lastSaved }: { lastSaved: number | null }) {
                 )}
               </div>
             </div>
+            {s.midi_path && <MidiPlayer url={api.sessionFileUrl(s.id, "midi")} playOnPiano={{ session_id: s.id }} />}
             {s.audio_path && <audio controls preload="none" src={api.sessionFileUrl(s.id, "audio")} />}
             <input
               defaultValue={s.notes ?? ""}

@@ -8,3 +8,4 @@ __pycache__/
 .devdata/
 .env
 *.db
+*.tsbuildinfo
