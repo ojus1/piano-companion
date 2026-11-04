@@ -19,10 +19,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
+from .. import progress as prog
 from .. import srs
 from ..config import get_settings
 from ..db import get_session
-from ..models import Performance, Piece, PracticeItem, PracticeSession, Review, TechniqueAttempt, utcnow
+from ..models import Performance, Piece, PracticeItem, PracticeSession, Review, Setting, TechniqueAttempt, utcnow
 
 router = APIRouter(prefix="/api")
 
@@ -558,28 +559,179 @@ def stop_playing(request: Request):
 # ---------- progress ----------
 
 
+def _minutes_by_day(db: Session, since: datetime | None = None) -> dict:
+    """Practice minutes per local day: auto-recorded sessions plus Record-screen takes."""
+    minutes: dict = defaultdict(float)
+    q = select(PracticeSession).where(col(PracticeSession.ended_at).is_not(None))
+    pq = select(Performance)
+    if since:
+        q = q.where(PracticeSession.started_at >= since)
+        pq = pq.where(Performance.started_at >= since)
+    for r in db.exec(q).all():
+        start = r.started_at.replace(tzinfo=r.started_at.tzinfo or UTC)
+        end = r.ended_at.replace(tzinfo=r.ended_at.tzinfo or UTC)
+        minutes[prog.local_day(start)] += max(0.0, (end - start).total_seconds() / 60)
+    for p in db.exec(pq).all():
+        minutes[prog.local_day(p.started_at)] += p.duration_s / 60
+    return minutes
+
+
+def _goals(db: Session) -> dict:
+    row = db.get(Setting, "goals")
+    return {**prog.DEFAULT_GOALS, **(row.value if row else {})}
+
+
+def _practiced_days(minutes: dict, goals: dict) -> set:
+    return {d for d, m in minutes.items() if m >= goals["streak_min_minutes"]}
+
+
 @router.get("/stats")
 def stats(days: int = 30, db: Session = Depends(get_session)):
     since = datetime.now(UTC) - timedelta(days=days)
-    rows = db.exec(select(PracticeSession).where(PracticeSession.started_at >= since)).all()
-    minutes: dict[str, float] = defaultdict(float)
-    for r in rows:
-        if r.ended_at:
-            start = r.started_at.replace(tzinfo=r.started_at.tzinfo or UTC)
-            end = r.ended_at.replace(tzinfo=r.ended_at.tzinfo or UTC)
-            day = start.astimezone().date().isoformat()
-            minutes[day] += (end - start).total_seconds() / 60
-    streak, d = 0, date.today()
-    if d.isoformat() not in minutes:  # today not practised yet doesn't break the streak
-        d -= timedelta(days=1)
-    while d.isoformat() in minutes:
-        streak += 1
-        d -= timedelta(days=1)
+    goals = _goals(db)
+    minutes = _minutes_by_day(db, since)
+    streak = prog.compute_streak(_practiced_days(_minutes_by_day(db), goals), date.today(), goals["weekly_days"])
+    n = len(db.exec(select(PracticeSession).where(PracticeSession.started_at >= since)).all())
     return {
-        "streak_days": streak,
-        "minutes_by_day": {k: round(v, 1) for k, v in sorted(minutes.items())},
+        "streak_days": streak.current,
+        "minutes_by_day": {k.isoformat(): round(v, 1) for k, v in sorted(minutes.items())},
         "total_minutes": round(sum(minutes.values()), 1),
-        "sessions": len(rows),
+        "sessions": n,
+    }
+
+
+class GoalsIn(BaseModel):
+    daily_minutes: int | None = None
+    weekly_days: int | None = None
+    streak_min_minutes: int | None = None
+
+
+@router.get("/goals")
+def get_goals(db: Session = Depends(get_session)):
+    return _goals(db)
+
+
+@router.put("/goals")
+def put_goals(body: GoalsIn, db: Session = Depends(get_session)):
+    patch = body.model_dump(exclude_none=True)
+    limits = {"daily_minutes": (1, 600), "weekly_days": (1, 7), "streak_min_minutes": (1, 120)}
+    for k, v in patch.items():
+        lo, hi = limits[k]
+        if not lo <= v <= hi:
+            raise HTTPException(422, f"{k} must be {lo}..{hi}")
+    row = db.get(Setting, "goals") or Setting(key="goals", value={})
+    row.value = {**row.value, **patch}
+    row.updated_at = utcnow()
+    db.add(row)
+    db.commit()
+    return _goals(db)
+
+
+@router.get("/progress")
+def progress(days: int = 182, db: Session = Depends(get_session)):
+    """Everything the Progress screen shows: streaks, goals, XP, consistency, time and technique trends."""
+    today = date.today()
+    goals = _goals(db)
+    minutes = _minutes_by_day(db)
+    practiced = _practiced_days(minutes, goals)
+    streak = prog.compute_streak(practiced, today, goals["weekly_days"])
+
+    attempts = [
+        a.model_dump() for a in db.exec(select(TechniqueAttempt).order_by(col(TechniqueAttempt.created_at))).all()
+    ]
+    reviews = db.exec(select(Review)).all()
+    goal_days = {d for d, m in minutes.items() if m >= goals["daily_minutes"]}
+
+    # XP per day = quality minutes + drill XP + review XP + daily-goal bonus.
+    xp_day: dict = defaultdict(float)
+    for d, m in minutes.items():
+        xp_day[d] += m
+    for a in attempts:
+        xp_day[prog.local_day(a["created_at"])] += prog.drill_xp(a["metrics"].get("accuracy"), a["rating"])
+    for r in reviews:
+        xp_day[prog.local_day(r.reviewed_at)] += prog.REVIEW_XP
+    for d in goal_days:
+        xp_day[d] += prog.GOAL_BONUS_XP
+    total_xp = round(sum(xp_day.values()))
+
+    # Consistency calendar, whole weeks ending this week.
+    first = prog.week_start(today) - timedelta(weeks=max(1, days // 7) - 1)
+    calendar = []
+    d = first
+    while d <= today:
+        calendar.append(
+            {
+                "date": d.isoformat(),
+                "minutes": round(minutes.get(d, 0.0), 1),
+                "status": streak.day_status.get(d, "pending" if d == today else "none"),
+                "goal": d in goal_days,
+                "xp": round(xp_day.get(d, 0.0)),
+            }
+        )
+        d += timedelta(days=1)
+
+    weeks: dict = defaultdict(lambda: {"minutes": 0.0, "days": 0})
+    for d, m in minutes.items():
+        if d >= first:
+            w = weeks[prog.week_start(d)]
+            w["minutes"] += m
+            w["days"] += d in practiced
+
+    sessions = db.exec(select(PracticeSession).where(col(PracticeSession.ended_at).is_not(None))).all()
+    hours = [0.0] * 24
+    for r in sessions:
+        start = r.started_at.replace(tzinfo=r.started_at.tzinfo or UTC)
+        end = r.ended_at.replace(tzinfo=r.ended_at.tzinfo or UTC)
+        hours[start.astimezone().hour] += (end - start).total_seconds() / 60
+    last30 = [today - timedelta(days=i) for i in range(30)]
+    total_minutes = sum(minutes.values())
+
+    return {
+        "today": today.isoformat(),
+        "goals": goals,
+        "streak": {
+            "current": streak.current,
+            "longest": streak.longest,
+            "freezes": streak.freezes,
+            "max_freezes": streak.max_freezes,
+            "practiced_today": streak.practiced_today,
+            "at_risk": streak.at_risk,
+            "week_days": streak.week_days,
+            "week_streak": streak.week_streak,
+            "best_week_streak": streak.best_week_streak,
+            "frozen_days": sum(1 for v in streak.day_status.values() if v == "frozen"),
+        },
+        "today_minutes": round(minutes.get(today, 0.0), 1),
+        "today_xp": round(xp_day.get(today, 0.0)),
+        "xp": prog.level_for(total_xp),
+        "time": {
+            "total_minutes": round(total_minutes, 1),
+            "sessions": len(sessions),
+            "avg_session_minutes": round(sum(minutes.values()) / len(sessions), 1) if sessions else None,
+            "last7_minutes": round(sum(minutes.get(today - timedelta(days=i), 0.0) for i in range(7)), 1),
+            "last30_minutes": round(sum(minutes.get(d, 0.0) for d in last30), 1),
+            "by_hour": [round(h, 1) for h in hours],
+            "weeks": [
+                {"week": w.isoformat(), "minutes": round(v["minutes"], 1), "days": v["days"]}
+                for w, v in sorted(weeks.items())
+            ],
+        },
+        "consistency": {
+            "days_last30": sum(1 for d in last30 if d in practiced),
+            "goal_days_last30": sum(1 for d in last30 if d in goal_days),
+            "practice_days": len(practiced),
+            "calendar": calendar,
+        },
+        "technique": prog.technique_series(attempts),
+        "achievements": prog.achievements(
+            longest=streak.longest,
+            total_minutes=total_minutes,
+            drills=len(attempts),
+            easy_drills=sum(1 for a in attempts if a["rating"] == 4),
+            best_week_streak=streak.best_week_streak,
+            goal_days=len(goal_days),
+            practice_days=len(practiced),
+        ),
     }
 
 

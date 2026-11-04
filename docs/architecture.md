@@ -79,6 +79,7 @@ backend/src/piano_companion/
   grading.py         curriculum grading rules: metrics -> Again/Hard/Good/Easy
   alignment.py       partitura + parangonar score alignment -> attempt metrics
   technique.py       scores technique drills (scales, arpeggios, chords) from live MIDI notes
+  progress.py        streaks + freezes, weekly goal, XP/levels, achievements, technique trend series
   seed.py            piano-companion-seed: catalog + stages -> pieces + practice items
   render.py          piano-companion-render: LilyPond -> PDF + MIDI
   service.py         wires capture → files → DB → WebSocket
@@ -87,7 +88,8 @@ backend/src/piano_companion/
 app/src/
   api.ts, hooks.ts (live socket, note bus, wake lock), midi.ts (+ tests)
   technique.ts (randomized drill generator, + tests) · metronome.ts (Web Audio click)
-  pages/Today, Technique, Library, Sessions, Live
+  pages/Today, Technique, Progress, Library, Record, Sessions, Live
+  components/Charts (dependency-free SVG: goal ring, bars, line, consistency calendar)
   components/ScoreViewer (OSMD) · PdfScore (EmbedPDF + annotations) · MidiPlayer (smplr + piano roll)
 deploy/  bootstrap-pi.sh · deploy.sh · piano-companion.service
 ```
@@ -106,3 +108,26 @@ chords grouped by onset), computes accuracy, achieved BPM, evenness (IBI CV) and
 curriculum's technique rules (`grading.grade_attempt(technique=True)`). Every attempt is logged in
 `techniqueattempt`; the grade becomes the concept card's FSRS review only when that card is due, so drilling
 a skill several times a day doesn't distort its schedule. Due concepts come up three times as often.
+
+## Streaks, goals and progress
+
+`GET /api/progress` feeds the Progress tab, and the Today tab's header cards. It follows the curriculum's
+`gamification` defaults (weekly 5-of-7 target, two bankable freezes, quality-weighted XP, no leagues) and
+Duolingo's streak loop. Everything is derived from recorded history (`progress.py`), so there's no counter to
+drift out of sync.
+
+- **Day streak**: consecutive days with at least `streak_min_minutes` (5) of practice. Today not played yet
+  keeps the streak but marks it at risk.
+- **Streak freezes**: a missed day spends a freeze instead of resetting. You start with one, earn one per week
+  that meets the weekly goal, and can bank two.
+- **Goals**: daily minutes (20) and weekly days (5), set on the Progress tab (`PUT /api/goals`, stored in the
+  `setting` table). Consecutive weeks meeting the weekly goal form the week streak.
+- **XP and levels**: practice minutes, plus up to 15 XP per technique drill (accuracy × 10, +5 for Good/Easy),
+  2 per review, and 10 for each day the daily goal is met. Level n starts at 50·n·(n−1) XP.
+- **Dashboards**: a consistency calendar (freeze days in blue), minutes per day against the goal, hours per
+  week, time of day, and per-drill technique trends: accuracy, best clean tempo (fastest run with ≥90% of
+  notes right) and evenness (1 − IBI CV).
+- **Achievements**: streak, hours, drill and goal milestones. The tablet celebrates each new one once.
+
+Practice time counts auto-recorded sessions plus Record-screen takes. Days are the Pi's local calendar days, so
+set the Pi's time zone (`sudo timedatectl set-timezone Asia/Kolkata`).

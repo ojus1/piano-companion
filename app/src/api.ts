@@ -59,6 +59,80 @@ export interface Stats {
   sessions: number;
 }
 
+export interface Goals {
+  daily_minutes: number;
+  weekly_days: number;
+  streak_min_minutes: number;
+}
+
+export interface TechniquePoint {
+  date: string;
+  attempts: number;
+  accuracy: number | null;
+  evenness: number | null;
+  clean_bpm: number | null;
+  rating: number;
+}
+
+export interface TechniqueTrend {
+  family?: string;
+  concept_id?: string | null;
+  attempts: number;
+  days: number;
+  accuracy_now: number | null;
+  accuracy_change: number | null;
+  best_clean_bpm: number | null;
+  last_at: string | null;
+  series: TechniquePoint[];
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  desc: string;
+  earned: boolean;
+  progress: number;
+}
+
+export type DayStatus = "practiced" | "frozen" | "missed" | "pending" | "none";
+
+export interface Progress {
+  today: string;
+  goals: Goals;
+  streak: {
+    current: number;
+    longest: number;
+    freezes: number;
+    max_freezes: number;
+    practiced_today: boolean;
+    at_risk: boolean;
+    week_days: number;
+    week_streak: number;
+    best_week_streak: number;
+    frozen_days: number;
+  };
+  today_minutes: number;
+  today_xp: number;
+  xp: { level: number; xp: number; level_start: number; next_level: number; progress: number };
+  time: {
+    total_minutes: number;
+    sessions: number;
+    avg_session_minutes: number | null;
+    last7_minutes: number;
+    last30_minutes: number;
+    by_hour: number[];
+    weeks: { week: string; minutes: number; days: number }[];
+  };
+  consistency: {
+    days_last30: number;
+    goal_days_last30: number;
+    practice_days: number;
+    calendar: { date: string; minutes: number; status: DayStatus; goal: boolean; xp: number }[];
+  };
+  technique: { overall: TechniqueTrend; families: TechniqueTrend[] };
+  achievements: Achievement[];
+}
+
 export type TakeKind = "performance" | "cover";
 
 export interface TakeInfo {
@@ -149,6 +223,8 @@ const json = (method: string, body: unknown): RequestInit => ({
 export const api = {
   status: () => req<Status>("/status"),
   stats: () => req<Stats>("/stats"),
+  progress: () => req<Progress>("/progress"),
+  setGoals: (g: Partial<Goals>) => req<Goals>("/goals", json("PUT", g)),
   queue: () => req<PracticeItem[]>("/practice/queue"),
   items: () => req<PracticeItem[]>("/practice/items"),
   addItem: (title: string, kind: string) => req<PracticeItem>("/practice/items", json("POST", { title, kind })),

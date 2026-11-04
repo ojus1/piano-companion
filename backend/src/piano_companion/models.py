@@ -117,3 +117,11 @@ class TechniqueAttempt(SQLModel, table=True):
     rating: int  # suggested FSRS grade 1..4
     practice_item_id: int | None = Field(default=None, foreign_key="practiceitem.id")
     applied: bool = False  # True when the grade was applied as the concept's FSRS review
+
+
+class Setting(SQLModel, table=True):
+    """Small key/value store for user preferences (practice goals, ...)."""
+
+    key: str = Field(primary_key=True)
+    value: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    updated_at: datetime = Field(default_factory=utcnow)

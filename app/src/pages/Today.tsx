@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, type AutoGrade, type Piece } from "../api";
+import { useEffect, useState } from "react";
+import { api, type Achievement, type AutoGrade, type Piece } from "../api";
 import { useData } from "../hooks";
 import ScoreViewer from "../components/ScoreViewer";
 
@@ -12,7 +12,8 @@ const RATINGS = [
 
 export default function Today({ lastSaved }: { lastSaved: number | null }) {
   const queue = useData(api.queue);
-  const stats = useData(api.stats, [lastSaved]);
+  const progress = useData(api.progress, [lastSaved]);
+  const [fresh, dismiss] = useNewAchievements(progress.data?.achievements);
   const [title, setTitle] = useState("");
   const [open, setOpen] = useState<Piece | null>(null);
   const [graded, setGraded] = useState<Record<number, AutoGrade | string>>({});
@@ -34,23 +35,43 @@ export default function Today({ lastSaved }: { lastSaved: number | null }) {
 
   if (open) return <ScoreViewer piece={open} onClose={() => setOpen(null)} />;
 
-  const today = new Date().toLocaleDateString("en-CA");
-  const minutesToday = stats.data?.minutes_by_day[today] ?? 0;
+  const p = progress.data;
+  const goalLeft = p ? Math.max(0, p.goals.daily_minutes - p.today_minutes) : 0;
 
   return (
     <div className="page">
+      {fresh.length > 0 && (
+        <div className="celebrate" onClick={dismiss}>
+          🎉 Achievement unlocked: <strong>{fresh.map((a) => a.title).join(", ")}</strong>
+        </div>
+      )}
       <section className="cards">
         <div className="stat">
-          <div className="big">{stats.data?.streak_days ?? "–"}</div>
+          <div className="big">🔥 {p?.streak.current ?? "–"}</div>
           <div>day streak</div>
+          {p && (
+            <div className="muted">
+              {p.streak.at_risk ? "play today to keep it" : p.streak.practiced_today ? "today counts ✓" : " "} · {"❄".repeat(p.streak.freezes) || "no"} freeze
+              {p.streak.freezes === 1 ? "" : "s"}
+            </div>
+          )}
         </div>
         <div className="stat">
-          <div className="big">{Math.round(minutesToday)}</div>
+          <div className="big">
+            {Math.round(p?.today_minutes ?? 0)}
+            <span className="of">/{p?.goals.daily_minutes ?? "–"}</span>
+          </div>
           <div>minutes today</div>
+          {p && <div className="muted">{goalLeft > 0 ? `${Math.ceil(goalLeft)} min to your goal` : "daily goal met ✓"}</div>}
         </div>
         <div className="stat">
           <div className="big">{queue.data?.length ?? "–"}</div>
           <div>items due</div>
+          {p && (
+            <div className="muted">
+              Lv {p.xp.level} · {p.streak.week_days}/{p.goals.weekly_days} days this week
+            </div>
+          )}
         </div>
       </section>
 
@@ -103,4 +124,27 @@ export default function Today({ lastSaved }: { lastSaved: number | null }) {
       </form>
     </div>
   );
+}
+
+/** Achievements earned since this tablet last looked, so each one is celebrated once. */
+function useNewAchievements(list: Achievement[] | undefined): [Achievement[], () => void] {
+  const [fresh, setFresh] = useState<Achievement[]>([]);
+  useEffect(() => {
+    if (!list) return;
+    let seen: string[] | null = null;
+    try {
+      seen = JSON.parse(localStorage.getItem("pc-achievements-seen") ?? "null");
+    } catch {
+      seen = null;
+    }
+    const earned = list.filter((a) => a.earned).map((a) => a.id);
+    // First run: remember what's already earned without a burst of old celebrations.
+    if (seen) setFresh(list.filter((a) => a.earned && !seen!.includes(a.id)));
+    try {
+      localStorage.setItem("pc-achievements-seen", JSON.stringify(earned));
+    } catch {
+      /* private mode: celebrate nothing rather than everything */
+    }
+  }, [list]);
+  return [fresh, () => setFresh([])];
 }
