@@ -1,0 +1,47 @@
+[project]
+name = "piano-companion"
+version = "0.1.0"
+description = "Raspberry Pi practice companion backend: records MIDI/audio practice, tracks progress, schedules reviews."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "sqlmodel>=0.0.22",
+  "pydantic-settings>=2.4",
+  "python-multipart>=0.0.9",
+  "mido>=1.3",
+  "fsrs>=6.0",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# Hardware I/O. Installed on the Pi; optional on a laptop so the code runs without a piano.
+hw = [
+  "python-rtmidi>=1.5",
+  "sounddevice>=0.5",
+  "soundfile>=0.12",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+
+[project.scripts]
+piano-companion = "piano_companion.main:run"
+fake-piano = "piano_companion.tools.fake_piano:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/piano_companion"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]  # FastAPI's Depends() in defaults is idiomatic
