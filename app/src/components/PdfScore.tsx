@@ -24,7 +24,8 @@ export default function PdfScore({ piece, onSaved }: { piece: Piece; onSaved: (p
       stamp: { manifests: [] }, // default stamps come from a CDN; keep everything on the Pi
       theme: { preference: "system" as const },
       disabledCategories: ["redaction", "print"],
-      annotations: { annotationAuthor: "Surya" },
+      // Author name stamped on annotations; set VITE_ANNOTATION_AUTHOR in app/.env.local (not committed).
+      annotations: { annotationAuthor: import.meta.env.VITE_ANNOTATION_AUTHOR || "Me" },
     }),
     [src],
   );
