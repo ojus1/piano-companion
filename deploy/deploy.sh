@@ -20,4 +20,5 @@ echo "==> Installing deps and restarting"
 ssh "$HOST" 'cd ~/piano-companion/backend \
   && ~/.local/bin/uv sync --frozen --no-dev --extra hw --extra align -q \
   && sudo systemctl restart piano-companion \
-  && sleep 2 && curl -fsS localhost:8000/api/status && echo'
+  && for i in $(seq 30); do curl -fsS localhost:8000/api/status 2>/dev/null && echo && exit 0; sleep 1; done; \
+     echo "service did not answer within 30 s; check: journalctl -u piano-companion" >&2; exit 1'

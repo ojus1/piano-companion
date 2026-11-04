@@ -6,7 +6,7 @@ set -euo pipefail
 echo "==> System packages"
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
-  git curl rsync build-essential pkg-config \
+  git curl rsync build-essential pkg-config python3-dev \
   libasound2-dev libjack-jackd2-dev \
   libportaudio2 libsndfile1 alsa-utils lilypond
 
