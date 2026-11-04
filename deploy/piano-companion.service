@@ -1,0 +1,18 @@
+[Unit]
+Description=Piano Companion backend
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+Group=audio
+WorkingDirectory=__HOME__/piano-companion/backend
+EnvironmentFile=-__HOME__/piano-companion/backend/.env
+Environment=PC_DATA_DIR=__HOME__/piano-data
+Environment=PC_STATIC_DIR=__HOME__/piano-companion/app/dist
+ExecStart=__HOME__/piano-companion/backend/.venv/bin/piano-companion
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,85 @@
+// Thin typed client for the Pi backend. Same origin in production (the Pi serves the app);
+// the vite dev server proxies /api to the Pi during development.
+
+export interface Piece {
+  id: number;
+  title: string;
+  composer?: string | null;
+  arranger?: string | null;
+  musicxml_path?: string | null;
+  pdf_path?: string | null;
+  tags: string[];
+}
+
+export interface PracticeItem {
+  id: number;
+  kind: string;
+  title: string;
+  piece_id?: number | null;
+  details: Record<string, unknown>;
+  due: string;
+  retrievability?: number;
+}
+
+export interface PracticeSession {
+  id: number;
+  started_at: string;
+  ended_at?: string | null;
+  midi_path?: string | null;
+  audio_path?: string | null;
+  note_count: number;
+  metrics: Record<string, number | null>;
+  notes?: string | null;
+}
+
+export interface Stats {
+  streak_days: number;
+  minutes_by_day: Record<string, number>;
+  total_minutes: number;
+  sessions: number;
+}
+
+export interface Status {
+  midi_port?: string | null;
+  midi_enabled: boolean;
+  recording?: boolean;
+  audio?: boolean;
+}
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(`/api${path}`, init);
+  if (!r.ok) throw new Error(`${init?.method ?? "GET"} ${path}: ${r.status}`);
+  return r.json() as Promise<T>;
+}
+
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+export const api = {
+  status: () => req<Status>("/status"),
+  stats: () => req<Stats>("/stats"),
+  queue: () => req<PracticeItem[]>("/practice/queue"),
+  items: () => req<PracticeItem[]>("/practice/items"),
+  addItem: (title: string, kind: string) => req<PracticeItem>("/practice/items", json("POST", { title, kind })),
+  review: (id: number, rating: 1 | 2 | 3 | 4) =>
+    req<PracticeItem>(`/practice/items/${id}/review`, json("POST", { rating })),
+  sessions: () => req<PracticeSession[]>("/sessions"),
+  patchSession: (id: number, notes: string) => req<PracticeSession>(`/sessions/${id}`, json("PATCH", { notes })),
+  pieces: () => req<Piece[]>("/pieces"),
+  addPiece: (title: string, composer: string) => req<Piece>("/pieces", json("POST", { title, composer })),
+  uploadScore: (id: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return req<Piece>(`/pieces/${id}/files`, { method: "POST", body: fd });
+  },
+  libraryUrl: (rel: string) => `/api/library/${rel}`,
+  sessionFileUrl: (id: number, kind: "midi" | "audio") => `/api/sessions/${id}/${kind}`,
+};
+
+export function liveSocketUrl(): string {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${location.host}/api/live`;
+}
