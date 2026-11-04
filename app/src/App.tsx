@@ -19,6 +19,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
+        <div className="wordmark">Piano Companion</div>
         <nav>
           {TABS.map((t) => (
             <button key={t} className={t === tab ? "tab active" : "tab"} onClick={() => setTab(t)}>
@@ -28,8 +29,8 @@ export default function App() {
         </nav>
         <div className="status" title={live.midiPort ?? "piano not connected"}>
           <span className={`dot ${live.connected ? (live.midiPort ? "ok" : "warn") : "off"}`} />
-          {!live.connected ? "Pi offline" : live.midiPort ? "Piano connected" : "Piano off"}
-          {live.recording && <span className="rec">● REC</span>}
+          <span className="label-text">{!live.connected ? "Pi offline" : live.midiPort ? "Piano connected" : "Piano off"}</span>
+          {live.recording && <span className="rec">Recording</span>}
         </div>
       </header>
       <main>

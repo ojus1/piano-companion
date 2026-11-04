@@ -196,8 +196,11 @@ export default function Technique({ held, pianoConnected }: { held: ReadonlySet<
 
   return (
     <div className="page technique">
-      <div className="row spread">
-        <h2>Technique</h2>
+      <div className="page-head">
+        <div>
+          <h1>Technique</h1>
+          <p>Random scale, arpeggio and chord drills, graded from what you play.</p>
+        </div>
         <div className="row">
           <button onClick={() => setShowSettings((v) => !v)}>{showSettings ? "Done" : "Drills & keys"}</button>
           <button className="primary" onClick={() => show(newDrill(drill.family))} disabled={active}>
@@ -207,7 +210,7 @@ export default function Technique({ held, pianoConnected }: { held: ReadonlySet<
       </div>
 
       {showSettings && (
-        <section className="item column settings">
+        <section className="panel settings" style={{ marginBottom: 16 }}>
           {(["Scales", "Arpeggios", "Chords"] as const).map((g) => (
             <div key={g} className="row">
               <span className="muted group-label">{g}</span>
@@ -243,7 +246,7 @@ export default function Technique({ held, pianoConnected }: { held: ReadonlySet<
         </section>
       )}
 
-      <section className="item column drill">
+      <section className="panel drill">
         <div className="drill-title">{drill.title}</div>
         <div className="muted">
           {drill.hands === "HT" ? "Hands together" : drill.hands === "RH" ? "Right hand" : "Left hand"} · {drill.detail}
@@ -314,7 +317,7 @@ export default function Technique({ held, pianoConnected }: { held: ReadonlySet<
       <ul className="queue">
         {(history.data ?? []).map((a) => (
           <li key={a.id} className="item">
-            <div>
+            <div className="grow">
               <div className="title">{a.title}</div>
               <div className="muted">
                 {parseUtc(a.created_at).toLocaleString()} · {a.bpm} BPM ·{" "}
@@ -325,7 +328,7 @@ export default function Technique({ held, pianoConnected }: { held: ReadonlySet<
             <span className={`grade r${a.rating}`}>{RATING[a.rating]}</span>
           </li>
         ))}
-        {history.data?.length === 0 && <li className="muted">No drills yet.</li>}
+        {history.data?.length === 0 && <li className="empty">No drills yet.</li>}
       </ul>
     </div>
   );
@@ -342,20 +345,24 @@ function ResultCard({ r, target, onNext }: { r: TechniqueResult; target: number;
           Next drill
         </button>
       </div>
-      <div className="cards">
-        <div className="stat">
+      <div className="strip">
+        <div className="cell">
+          <div className="label">Right notes{m.extra ? ` · ${m.extra} extra` : ""}</div>
           <div className="big">
-            {m.matched}/{m.expected}
+            {m.matched}
+            <span className="unit">/ {m.expected}</span>
           </div>
-          <div>right notes{m.extra ? ` · ${m.extra} extra` : ""}</div>
         </div>
-        <div className="stat">
-          <div className="big">{m.achieved_bpm ? Math.round(m.achieved_bpm) : "–"}</div>
-          <div>BPM played (target {target})</div>
+        <div className="cell">
+          <div className="label">Tempo played (target {target})</div>
+          <div className="big">
+            {m.achieved_bpm ? Math.round(m.achieved_bpm) : "–"}
+            <span className="unit">BPM</span>
+          </div>
         </div>
-        <div className="stat">
+        <div className="cell">
+          <div className="label">Timing spread · {evenness}</div>
           <div className="big">{m.ibi_cv == null ? "–" : `${Math.round(m.ibi_cv * 100)}%`}</div>
-          <div>timing spread · {evenness}</div>
         </div>
       </div>
       <p className="muted">

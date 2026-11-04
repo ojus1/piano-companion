@@ -8,27 +8,27 @@ const fmtDay = (iso: string) =>
 
 /** Daily goal ring: fills as today's minutes approach the goal. */
 export function Ring({ value, goal, size = 120, label }: { value: number; goal: number; size?: number; label: string }) {
-  const r = size / 2 - 8;
+  const r = size / 2 - 4;
   const c = 2 * Math.PI * r;
   const f = Math.min(1, goal > 0 ? value / goal : 0);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line)" strokeWidth={10} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--raised)" strokeWidth={4} />
       <circle
         cx={size / 2}
         cy={size / 2}
         r={r}
         fill="none"
-        stroke={f >= 1 ? "var(--ok)" : "var(--accent)"}
-        strokeWidth={10}
+        stroke="var(--accent)"
+        strokeWidth={4}
         strokeLinecap="round"
         strokeDasharray={`${c * f} ${c}`}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
-      <text x="50%" y="47%" textAnchor="middle" className="ring-big">
+      <text x="50%" y="50%" textAnchor="middle" className="ring-big">
         {Math.round(value)}
       </text>
-      <text x="50%" y="66%" textAnchor="middle" className="ring-small">
+      <text x="50%" y="68%" textAnchor="middle" className="ring-small">
         of {goal} min
       </text>
     </svg>
@@ -86,7 +86,7 @@ export function Bars({
                   y={y(d.value)}
                   width={Math.max(2, bw - 2)}
                   height={Math.max(1, h)}
-                  rx={Math.min(4, bw / 3)}
+                  rx={Math.min(2, bw / 3)}
                   className={hover === i ? "bar hot" : goal && d.value >= goal ? "bar met" : "bar"}
                 />
               )}
@@ -176,7 +176,7 @@ export function Line({
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={height - pad.b} className="crosshair" />}
         <path d={`M${path}`} className="line" />
         {points.map((p, i) =>
-          p.value === null ? null : <circle key={i} cx={x(i)} cy={y(p.value)} r={hover === i ? 6 : points.length > 30 ? 2.5 : 4} className="dot-mark" />,
+          p.value === null ? null : <circle key={i} cx={x(i)} cy={y(p.value)} r={hover === i ? 4.5 : 2.5} className="dot-mark" />,
         )}
       </svg>
       <div className="chart-tip">
@@ -210,7 +210,7 @@ export function Calendar({ days: all, goal }: { days: CalDay[]; goal: number }) 
   const H = 7 * (cell + gap) + 18;
   return (
     <div className="chart">
-      <svg viewBox={`0 0 ${W} ${H}`} className="chart-svg calendar" style={{ maxWidth: W * 2 }} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="chart-svg calendar" style={{ maxWidth: W * 1.25 }} onMouseLeave={() => setHover(null)}>
         {["M", "", "W", "", "F", "", "S"].map((l, i) => (
           <text key={i} x={0} y={18 + i * (cell + gap) + cell - 4} className="axis">
             {l}
@@ -232,7 +232,7 @@ export function Calendar({ days: all, goal }: { days: CalDay[]; goal: number }) 
                 y={18 + dow * (cell + gap)}
                 width={cell}
                 height={cell}
-                rx={3}
+                rx={2}
                 className={`cal ${d.status === "frozen" ? "frozen" : `l${level(d.minutes)}`} ${d.status === "pending" ? "today" : ""}`}
                 onMouseEnter={() => setHover(d)}
                 onPointerDown={() => setHover(d)}
@@ -244,7 +244,7 @@ export function Calendar({ days: all, goal }: { days: CalDay[]; goal: number }) 
       <div className="chart-tip">
         {hover
           ? `${fmtDay(hover.date)}: ${Math.round(hover.minutes)} min${hover.status === "frozen" ? " · streak freeze used" : ""}${hover.goal ? " · goal met" : ""}`
-          : "Darker = more minutes. Blue = a streak freeze saved the day."}
+          : "Brighter = more minutes. Blue = a streak freeze saved the day."}
       </div>
     </div>
   );

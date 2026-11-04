@@ -99,20 +99,20 @@ export default function Record({ held, takeEvent, pianoConnected }: Props) {
 
   return (
     <div className="page">
-      <h2>Record a take</h2>
-      <p className="muted">
-        For performances and covers you want to keep. Practice is still recorded automatically on its own; takes are
-        saved separately and are never trimmed to free space.
-      </p>
+      <div className="page-head">
+        <div>
+          <h1>Record</h1>
+          <p>Performances and covers you want to keep. Practice is recorded on its own; takes are never trimmed.</p>
+        </div>
+      </div>
 
       <div className={`take-panel ${take ? "live" : ""}`}>
         {take ? (
           <>
             <div className="row spread">
               <div>
-                <div className="title">
-                  <span className="rec">● REC</span> {take.title}
-                </div>
+                <div className="rec">Recording</div>
+                <div className="title">{take.title}</div>
                 <div className="muted">{take.kind === "cover" ? "Cover" : "Performance"}</div>
               </div>
               <div className="take-clock">{fmt(elapsed)}</div>
@@ -125,7 +125,7 @@ export default function Record({ held, takeEvent, pianoConnected }: Props) {
             </div>
             <div className="row">
               <button className="record-btn stop" onClick={stop} disabled={busy}>
-                ■ Stop and save
+                Stop and save
               </button>
               <button onClick={discard} disabled={busy}>
                 Discard
@@ -151,7 +151,7 @@ export default function Record({ held, takeEvent, pianoConnected }: Props) {
                 ))}
               </div>
               <button className="record-btn" onClick={start} disabled={busy}>
-                ● Record
+                Record
               </button>
             </div>
             {!pianoConnected && <div className="error">The piano isn’t connected, so nothing will be captured.</div>}
@@ -160,15 +160,15 @@ export default function Record({ held, takeEvent, pianoConnected }: Props) {
         {msg && <div className="muted">{msg}</div>}
       </div>
 
-      <div className="row spread">
-        <h2>Saved takes</h2>
+      <div className="row spread" style={{ margin: "40px 0 12px" }}>
+        <h2 style={{ margin: 0 }}>Saved takes</h2>
         <div className="segmented">
           {(
             [
               ["all", "All"],
               ["performance", "Performances"],
               ["cover", "Covers"],
-              ["favorites", "★"],
+              ["favorites", "Favourites"],
             ] as const
           ).map(([f, label]) => (
             <button key={f} className={f === filter ? "active" : ""} onClick={() => setFilter(f)}>
@@ -178,7 +178,7 @@ export default function Record({ held, takeEvent, pianoConnected }: Props) {
         </div>
       </div>
       {takes.error && <p className="error">{takes.error}</p>}
-      {takes.data && shown.length === 0 && <p className="muted">No takes yet.</p>}
+      {takes.data && shown.length === 0 && <p className="muted">{filter === "all" ? "No takes yet." : "Nothing here yet."}</p>}
       <ul className="queue">
         {shown.map((p) => (
           <TakeRow key={p.id} p={p} onChange={takes.reload} />
@@ -205,9 +205,12 @@ function TakeRow({ p, onChange }: { p: Performance; onChange: () => void }) {
           <button
             className={`star ${p.favorite ? "on" : ""}`}
             title={p.favorite ? "Unfavorite" : "Favorite"}
+            aria-label={p.favorite ? "Unfavorite" : "Favorite"}
             onClick={() => patch({ favorite: !p.favorite })}
           >
-            {p.favorite ? "★" : "☆"}
+            <svg viewBox="0 0 24 24" fill={p.favorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
+              <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+            </svg>
           </button>
           <input
             className="title-input"
@@ -224,11 +227,11 @@ function TakeRow({ p, onChange }: { p: Performance; onChange: () => void }) {
             <option value="performance">Performance</option>
             <option value="cover">Cover</option>
           </select>
-          <a className="button" href={api.performanceMidiUrl(p.id)} download>
+          <a className="button ghost" href={api.performanceMidiUrl(p.id)} download>
             MIDI
           </a>
           <button
-            className={confirm ? "danger" : ""}
+            className={confirm ? "danger" : "ghost"}
             onClick={() => (confirm ? api.deletePerformance(p.id).then(onChange) : setConfirm(true))}
           >
             {confirm ? "Tap again to delete" : "Delete"}

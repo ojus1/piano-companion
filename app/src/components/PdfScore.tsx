@@ -9,6 +9,17 @@ import { api, type Piece } from "../api";
  * into a copy of the PDF on the Pi; the original stays untouched. Everything loads from the Pi,
  * no CDN: the wasm is bundled and external fonts are disabled.
  */
+// EmbedPDF's own dark theme is navy; match the app's matte neutrals instead.
+const PDF_THEME = {
+  background: { app: "#121211", surface: "#1a1a19", surfaceAlt: "#1a1a19", elevated: "#232322", input: "#232322" },
+  foreground: { primary: "#ecebe7", secondary: "#a7a59f", muted: "#8b8984", onAccent: "#0f1410" },
+  border: { default: "#2a2a28", subtle: "#2a2a28", strong: "#3a3a37" },
+  accent: { primary: "#9fbfa6", primaryHover: "#b2cdb8", primaryActive: "#8aab92", primaryLight: "#24302a", primaryForeground: "#0f1410" },
+  interactive: { hover: "#232322", active: "#2a2a28", selected: "#24302a", focus: "#9fbfa6", focusRing: "#24302a" },
+  scrollbar: { track: "#121211", thumb: "#3a3a37", thumbHover: "#4a4a46" },
+  tooltip: { background: "#232322", foreground: "#ecebe7" },
+};
+
 export default function PdfScore({ piece, onSaved }: { piece: Piece; onSaved: (p: Piece) => void }) {
   const viewer = useRef<PDFViewerRef>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -22,7 +33,7 @@ export default function PdfScore({ piece, onSaved }: { piece: Piece; onSaved: (p
       fontFallback: null,
       fonts: { ui: null, signature: null },
       stamp: { manifests: [] }, // default stamps come from a CDN; keep everything on the Pi
-      theme: { preference: "system" as const },
+      theme: { preference: "dark" as const, dark: PDF_THEME },
       disabledCategories: ["redaction", "print"],
       // Author name stamped on annotations; set VITE_ANNOTATION_AUTHOR in app/.env.local (not committed).
       annotations: { annotationAuthor: import.meta.env.VITE_ANNOTATION_AUTHOR || "Me" },

@@ -10,9 +10,11 @@ is the screen.
 | **Today**: what's due, your streak and daily goal. | **Technique**: random scale, arpeggio and chord drills, graded from MIDI. |
 | ![Progress](docs/screenshots/progress.png) | ![Technique trends](docs/screenshots/progress-technique.png) |
 | **Progress**: streaks with freezes, goals, XP, consistency. | **Trends**: accuracy, clean tempo and evenness per drill. |
+| ![Record](docs/screenshots/record.png) | ![Score](docs/screenshots/score.png) |
+| **Record**: performance and cover takes, kept until you delete them. | **Score**: MusicXML (dark or paper) or annotatable PDF, with a MIDI player. |
 
-Also: a score library (MusicXML and annotatable PDF), a Record screen for performance takes, a session log with
-playback, and a live keyboard. Screenshots use demo data.
+Also: a score library, a session log with playback, and a live keyboard. Screenshots use made-up demo data
+(`piano-companion-demo`, then `node app/scripts/screenshots.mjs`; steps are in the script).
 
 - [docs/hardware.md](docs/hardware.md): what to buy (Indian retailers) and how it connects
 - [docs/architecture.md](docs/architecture.md): how the system fits together, and why

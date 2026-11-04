@@ -25,27 +25,50 @@ function Dashboard({ p, reload }: { p: P; reload: () => void }) {
 
   return (
     <div className="page progress">
-      <section className="hero">
-        <div className="stat streak-card">
-          <div className={`flame ${s.practiced_today ? "lit" : ""}`} aria-hidden>🔥</div>
-          <div className="big">{s.current}</div>
-          <div>day streak</div>
-          <div className="muted">
-            {s.at_risk ? "Play today to keep it" : s.practiced_today ? "Today counts ✓" : "Play to start one"} · best {s.longest}
+      <div className="page-head">
+        <div>
+          <h1>Progress</h1>
+          <p>
+            {p.consistency.days_last30} of the last 30 days practised · {hrs(p.time.last30_minutes)} this month
+          </p>
+        </div>
+      </div>
+
+      <section className="strip four">
+        <div className="cell">
+          <div className="label">Streak</div>
+          <div className="big">
+            {s.current}
+            <span className="unit">days</span>
           </div>
-          <div className="freezes" title="Streak freezes: a missed day uses one instead of breaking your streak. Hit the weekly goal to earn more.">
-            {Array.from({ length: s.max_freezes }, (_, i) => (
-              <span key={i} className={i < s.freezes ? "freeze on" : "freeze"}>❄</span>
-            ))}
-            <span className="muted"> {s.freezes} freeze{s.freezes === 1 ? "" : "s"}</span>
+          <div className="sub">
+            {s.at_risk ? "Play today to keep it" : s.practiced_today ? "Today counts" : "Play to start one"} · best {s.longest}
+          </div>
+          <div
+            className="sub"
+            title="Streak freezes: a missed day uses one instead of breaking your streak. Hit the weekly goal to earn more."
+          >
+            <span className="freezes" aria-hidden>
+              {Array.from({ length: s.max_freezes }, (_, i) => (
+                <span key={i} className={i < s.freezes ? "freeze on" : "freeze"} />
+              ))}
+            </span>{" "}
+            {s.freezes} of {s.max_freezes} freezes
           </div>
         </div>
-        <div className="stat">
-          <Ring value={p.today_minutes} goal={p.goals.daily_minutes} label="Today's minutes against the daily goal" />
-          <div>daily goal</div>
-          <div className="muted">+{p.today_xp} XP today</div>
+        <div className="cell ring-cell">
+          <Ring value={p.today_minutes} goal={p.goals.daily_minutes} size={96} label="Today's minutes against the daily goal" />
+          <div>
+            <div className="label">Daily goal</div>
+            <div className="sub">+{p.today_xp} XP today</div>
+          </div>
         </div>
-        <div className="stat">
+        <div className="cell">
+          <div className="label">This week</div>
+          <div className="big">
+            {s.week_days}
+            <span className="unit">/ {p.goals.weekly_days} days</span>
+          </div>
           <div className="week-dots">
             {DOW.map((d, i) => {
               const day = thisWeek[i];
@@ -57,23 +80,19 @@ function Dashboard({ p, reload }: { p: P; reload: () => void }) {
               );
             })}
           </div>
-          <div className="big small">
-            {s.week_days}/{p.goals.weekly_days}
-          </div>
-          <div>days this week</div>
-          <div className="muted">
+          <div className="sub">
             {s.week_streak} week streak · best {s.best_week_streak}
           </div>
         </div>
-        <div className="stat">
-          <div className="level">Lv {p.xp.level}</div>
-          <div className="xpbar">
+        <div className="cell" title="XP = practice minutes + drill accuracy + goal bonuses">
+          <div className="label">Level</div>
+          <div className="big">{p.xp.level}</div>
+          <div className="meter" aria-hidden>
             <div style={{ width: pct(p.xp.progress) }} />
           </div>
-          <div className="muted">
-            {p.xp.xp} XP · {p.xp.next_level - p.xp.xp} to level {p.xp.level + 1}
+          <div className="sub">
+            {p.xp.xp.toLocaleString()} XP · {(p.xp.next_level - p.xp.xp).toLocaleString()} to level {p.xp.level + 1}
           </div>
-          <div className="muted">XP = practice minutes + drill accuracy + goal bonuses</div>
         </div>
       </section>
 
@@ -135,20 +154,22 @@ function Dashboard({ p, reload }: { p: P; reload: () => void }) {
       <Technique t={p.technique} />
 
       <h2>Achievements</h2>
-      <div className="badges">
+      <ul className="badges">
         {p.achievements.map((a) => (
-          <div key={a.id} className={a.earned ? "badge earned" : "badge"} title={a.desc}>
-            <div className="badge-icon">{a.earned ? "🏆" : "🔒"}</div>
+          <li key={a.id} className={a.earned ? "badge earned" : "badge"} title={a.desc}>
             <div className="title">{a.title}</div>
-            <div className="muted">{a.desc}</div>
-            {!a.earned && (
-              <div className="xpbar thin">
-                <div style={{ width: pct(a.progress) }} />
-              </div>
-            )}
-          </div>
+            <div className="state">{a.earned ? "Earned" : pct(a.progress)}</div>
+            <div className="muted">
+              {a.desc}
+              {!a.earned && (
+                <div className="meter">
+                  <div style={{ width: pct(a.progress) }} />
+                </div>
+              )}
+            </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
       <GoalsForm goals={p.goals} onSaved={reload} />
     </div>
@@ -166,7 +187,7 @@ function Technique({ t }: { t: P["technique"] }) {
           <p className="muted">Play some drills on the Technique tab and your accuracy, clean tempo and evenness will chart here.</p>
         ) : (
           <>
-            <div className="row">
+            <div className="row" style={{ marginBottom: 16 }}>
               <select value={sel} onChange={(e) => setSel(e.target.value)}>
                 <option value="">All drills</option>
                 {t.families.map((f) => (

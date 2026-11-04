@@ -73,14 +73,17 @@ export default function MidiPlayer({ url, title, playOnPiano }: Props) {
     const xs = w / Math.max(duration, 1);
     const ys = h / (hi - lo);
     g.clearRect(0, 0, w, h);
-    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#b7791f";
+    const css = getComputedStyle(document.documentElement);
+    const accent = css.getPropertyValue("--accent").trim() || "#9fbfa6";
+    const rest = css.getPropertyValue("--faint").trim() || "#8b8984";
+    const head = css.getPropertyValue("--text").trim() || "#ecebe7";
     for (const n of notes) {
       g.globalAlpha = 0.35 + 0.65 * n.velocity;
-      g.fillStyle = n.time <= pos ? accent : "#8a8f99";
+      g.fillStyle = n.time <= pos ? accent : rest;
       g.fillRect(n.time * xs, h - (n.midi - lo + 1) * ys, Math.max(2, n.duration * xs), Math.max(2, ys - 1));
     }
     g.globalAlpha = 1;
-    g.fillStyle = "#c53030";
+    g.fillStyle = head;
     g.fillRect(pos * xs, 0, 2 * devicePixelRatio, h);
   }, [notes, duration, pos]);
 
@@ -165,11 +168,11 @@ export default function MidiPlayer({ url, title, playOnPiano }: Props) {
         </label>
         {playOnPiano && (
           <>
-            <button onClick={onPiano}>Play on piano</button>
-            <button onClick={() => fetch("/api/play/stop", { method: "POST" })}>Stop piano</button>
+            <button className="ghost" onClick={onPiano}>Play on piano</button>
+            <button className="ghost" onClick={() => fetch("/api/play/stop", { method: "POST" })}>Stop piano</button>
           </>
         )}
-        <span className="muted">
+        <span className="time">
           {fmt(pos)} / {fmt(duration)}
         </span>
       </div>

@@ -38,72 +38,99 @@ export default function Today({ lastSaved }: { lastSaved: number | null }) {
   const p = progress.data;
   const goalLeft = p ? Math.max(0, p.goals.daily_minutes - p.today_minutes) : 0;
 
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const minutesPct = p ? Math.min(1, p.today_minutes / Math.max(1, p.goals.daily_minutes)) : 0;
+
   return (
     <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Today</h1>
+          <p>{today}</p>
+        </div>
+      </div>
+
       {fresh.length > 0 && (
-        <div className="celebrate" onClick={dismiss}>
-          🎉 Achievement unlocked: <strong>{fresh.map((a) => a.title).join(", ")}</strong>
+        <div className="notice" onClick={dismiss} role="status">
+          <span>
+            Achievement unlocked: <strong>{fresh.map((a) => a.title).join(", ")}</strong>
+          </span>
+          <span className="muted">Dismiss</span>
         </div>
       )}
-      <section className="cards">
-        <div className="stat">
-          <div className="big">🔥 {p?.streak.current ?? "–"}</div>
-          <div>day streak</div>
+
+      <section className="strip">
+        <div className="cell">
+          <div className="label">Streak</div>
+          <div className="big">
+            {p?.streak.current ?? "–"}
+            <span className="unit">days</span>
+          </div>
           {p && (
-            <div className="muted">
-              {p.streak.at_risk ? "play today to keep it" : p.streak.practiced_today ? "today counts ✓" : " "} · {"❄".repeat(p.streak.freezes) || "no"} freeze
-              {p.streak.freezes === 1 ? "" : "s"}
+            <div className="sub">
+              {p.streak.at_risk ? "Play today to keep it" : p.streak.practiced_today ? "Today counts" : "Play to start one"} ·{" "}
+              {p.streak.freezes} freeze{p.streak.freezes === 1 ? "" : "s"} left
             </div>
           )}
         </div>
-        <div className="stat">
+        <div className="cell">
+          <div className="label">Practised today</div>
           <div className="big">
             {Math.round(p?.today_minutes ?? 0)}
-            <span className="of">/{p?.goals.daily_minutes ?? "–"}</span>
+            <span className="unit">/ {p?.goals.daily_minutes ?? "–"} min</span>
           </div>
-          <div>minutes today</div>
-          {p && <div className="muted">{goalLeft > 0 ? `${Math.ceil(goalLeft)} min to your goal` : "daily goal met ✓"}</div>}
+          <div className="meter" aria-hidden>
+            <div style={{ width: `${minutesPct * 100}%` }} />
+          </div>
+          {p && <div className="sub">{goalLeft > 0 ? `${Math.ceil(goalLeft)} min to your daily goal` : "Daily goal met"}</div>}
         </div>
-        <div className="stat">
-          <div className="big">{queue.data?.length ?? "–"}</div>
-          <div>items due</div>
+        <div className="cell">
+          <div className="label">Due for review</div>
+          <div className="big">
+            {queue.data?.length ?? "–"}
+            <span className="unit">item{queue.data?.length === 1 ? "" : "s"}</span>
+          </div>
           {p && (
-            <div className="muted">
-              Lv {p.xp.level} · {p.streak.week_days}/{p.goals.weekly_days} days this week
+            <div className="sub">
+              Level {p.xp.level} · {p.streak.week_days} of {p.goals.weekly_days} days this week
             </div>
           )}
         </div>
       </section>
 
-      <h2>Today's practice</h2>
+      <h2>Practice queue</h2>
       {queue.error && <p className="error">Can't reach the Pi: {queue.error}</p>}
       {queue.data?.length === 0 && <p className="muted">Nothing due. Free play, or add an item below.</p>}
       <ul className="queue">
         {queue.data?.map((item) => (
           <li key={item.id} className="item">
-            <div>
+            <div className="grow">
               <div className="title">{item.title}</div>
               <div className="muted">
                 {[item.stage, item.kind.replace("_", " "), item.details.role as string | undefined].filter(Boolean).join(" · ")}
               </div>
               {typeof graded[item.id] === "string" && <div className="error">{graded[item.id] as string}</div>}
             </div>
-            {item.piece && (
-              <div className="row">
-                <button onClick={() => setOpen(item.piece!)}>Score</button>
-                {(item.piece.musicxml_path || item.piece.midi_path) && (
-                  <button title="Grade your last recorded take against the score" onClick={() => autograde(item.id)}>
-                    Auto-grade last take
+            <div className="actions">
+              {item.piece && (
+                <>
+                  <button className="ghost" onClick={() => setOpen(item.piece!)}>
+                    Score
                   </button>
-                )}
+                  {(item.piece.musicxml_path || item.piece.midi_path) && (
+                    <button className="ghost" title="Grade your last recorded take against the score" onClick={() => autograde(item.id)}>
+                      Auto-grade
+                    </button>
+                  )}
+                </>
+              )}
+              <div className="ratings" role="group" aria-label="How did it go?">
+                {RATINGS.map(({ r, label, hint }) => (
+                  <button key={r} className={`rate r${r}`} title={hint} onClick={() => grade(item.id, r)}>
+                    {label}
+                  </button>
+                ))}
               </div>
-            )}
-            <div className="ratings">
-              {RATINGS.map(({ r, label, hint }) => (
-                <button key={r} className={`rate r${r}`} title={hint} onClick={() => grade(item.id, r)}>
-                  {label}
-                </button>
-              ))}
             </div>
           </li>
         ))}
@@ -111,6 +138,7 @@ export default function Today({ lastSaved }: { lastSaved: number | null }) {
 
       <form
         className="row"
+        style={{ marginTop: 16 }}
         onSubmit={async (e) => {
           e.preventDefault();
           if (!title.trim()) return;

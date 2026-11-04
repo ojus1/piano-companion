@@ -17,14 +17,15 @@ export default defineConfig({
         description: "Practice companion running on the Raspberry Pi",
         display: "fullscreen",
         orientation: "any",
-        background_color: "#14161a",
-        theme_color: "#14161a",
+        background_color: "#121211",
+        theme_color: "#121211",
         icons: [{ src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
       },
       workbox: {
         // Never cache API responses or recordings; the app shell is enough offline.
         navigateFallbackDenylist: [/^\/api/],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        globPatterns: ["**/*.{js,wasm,css,html,svg,woff2}"],
       },
     }),
   ],

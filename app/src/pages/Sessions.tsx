@@ -7,9 +7,14 @@ export default function Sessions({ lastSaved }: { lastSaved: number | null }) {
   const sessions = useData(api.sessions, [lastSaved]);
   return (
     <div className="page">
-      <h2>Practice log</h2>
-      <p className="muted">Sessions are recorded automatically when you play, and end after a pause.</p>
+      <div className="page-head">
+        <div>
+          <h1>Sessions</h1>
+          <p>Recorded automatically when you play; a session ends after a pause.</p>
+        </div>
+      </div>
       {sessions.error && <p className="error">{sessions.error}</p>}
+      {sessions.data?.length === 0 && <p className="muted">No sessions yet. Play something and it will show up here.</p>}
       <ul className="queue">
         {sessions.data?.map((s) => (
           <li key={s.id} className="item column">
@@ -27,7 +32,7 @@ export default function Sessions({ lastSaved }: { lastSaved: number | null }) {
               </div>
               <div className="row">
                 {s.midi_path && (
-                  <a className="button" href={api.sessionFileUrl(s.id, "midi")} download>
+                  <a className="button ghost" href={api.sessionFileUrl(s.id, "midi")} download>
                     MIDI
                   </a>
                 )}

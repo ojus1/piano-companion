@@ -34,8 +34,13 @@ export default function Library() {
 
   return (
     <div className="page">
-      <h2>Library</h2>
-      <div className="row">
+      <div className="page-head">
+        <div>
+          <h1>Library</h1>
+          <p>{pieces ? `${pieces.length} pieces${pieces.length === 200 ? " (first 200)" : ""}` : "Loading…"}</p>
+        </div>
+      </div>
+      <div className="row" style={{ marginBottom: 16 }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title or composer" />
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           {CATEGORIES.map(([v, l]) => (
@@ -46,11 +51,10 @@ export default function Library() {
         </select>
       </div>
       {error && <p className="error">{error}</p>}
-      <p className="muted">{pieces ? `${pieces.length} pieces${pieces.length === 200 ? " (first 200)" : ""}` : "Loading…"}</p>
       <ul className="queue">
         {pieces?.map((p) => (
           <li key={p.id} className="item">
-            <div>
+            <div className="grow">
               <div className="title">{p.title}</div>
               <div className="muted">
                 {[p.composer, p.level_henle != null && `Henle ${p.level_henle}`, (p.skills ?? []).slice(0, 3).join(", ")]
@@ -62,7 +66,7 @@ export default function Library() {
               <span className="muted">
                 {[p.musicxml_path && "notation", p.pdf_path && "PDF", p.midi_path && "MIDI"].filter(Boolean).join(" · ")}
               </span>
-              <label className="button">
+              <label className="button ghost">
                 Upload
                 <input
                   type="file"
@@ -82,6 +86,7 @@ export default function Library() {
           </li>
         ))}
       </ul>
+      {pieces?.length === 0 && <p className="muted">No pieces match.</p>}
       <h2>Add your own piece</h2>
       <form
         className="row"

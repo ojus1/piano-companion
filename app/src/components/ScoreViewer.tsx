@@ -14,21 +14,46 @@ export default function ScoreViewer({ piece: initial, onClose }: { piece: Piece;
   const hasXml = !!piece.musicxml_path;
   const hasPdf = !!piece.pdf_path;
   const [view, setView] = useState<"xml" | "pdf">(hasXml ? "xml" : "pdf");
+  const [paper, setPaper] = useState(() => {
+    try {
+      return localStorage.getItem("score-paper") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("score-paper", paper ? "1" : "0");
+    } catch {
+      /* private mode */
+    }
+  }, [paper]);
 
   return (
     <div className="viewer">
       <div className="viewer-bar">
-        <button onClick={onClose}>← Library</button>
-        <div>
+        <button className="ghost" onClick={onClose} aria-label="Back">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <path d="M10 3L5 8l5 5" />
+          </svg>
+          Back
+        </button>
+        <div className="grow">
           <strong>{piece.title}</strong>
           <div className="muted">
             {[piece.composer, piece.level_henle && `Henle ${piece.level_henle}`, piece.license].filter(Boolean).join(" · ")}
           </div>
         </div>
         {hasXml && hasPdf && (
-          <div className="row">
-            <button className={view === "xml" ? "tab active" : "tab"} onClick={() => setView("xml")}>Notation</button>
-            <button className={view === "pdf" ? "tab active" : "tab"} onClick={() => setView("pdf")}>PDF</button>
+          <div className="segmented">
+            <button className={view === "xml" ? "active" : ""} onClick={() => setView("xml")}>Notation</button>
+            <button className={view === "pdf" ? "active" : ""} onClick={() => setView("pdf")}>PDF</button>
+          </div>
+        )}
+        {view === "xml" && hasXml && (
+          <div className="segmented" aria-label="Notation colours">
+            <button className={!paper ? "active" : ""} onClick={() => setPaper(false)}>Dark</button>
+            <button className={paper ? "active" : ""} onClick={() => setPaper(true)}>Paper</button>
           </div>
         )}
       </div>
@@ -37,7 +62,7 @@ export default function ScoreViewer({ piece: initial, onClose }: { piece: Piece;
           <MidiPlayer url={api.libraryUrl(piece.midi_path)} playOnPiano={{ piece_id: piece.id }} />
         </div>
       )}
-      {view === "xml" && hasXml && <MusicXml path={piece.musicxml_path!} />}
+      {view === "xml" && hasXml && <MusicXml path={piece.musicxml_path!} paper={paper} />}
       {view === "pdf" && hasPdf && (
         <Suspense fallback={<p className="page muted">Loading PDF viewer…</p>}>
           <PdfScore piece={piece} onSaved={setPiece} />
@@ -57,7 +82,10 @@ export default function ScoreViewer({ piece: initial, onClose }: { piece: Piece;
   );
 }
 
-function MusicXml({ path }: { path: string }) {
+// Notation ink on the dark ground; "Paper" switches to black on a soft off-white page.
+const INK = "#dcdad4";
+
+function MusicXml({ path, paper }: { path: string; paper: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -67,7 +95,13 @@ function MusicXml({ path }: { path: string }) {
     (async () => {
       try {
         const { OpenSheetMusicDisplay } = await import("opensheetmusicdisplay");
-        const osmd = new OpenSheetMusicDisplay(el, { autoResize: true, drawTitle: true, backend: "svg" });
+        const osmd = new OpenSheetMusicDisplay(el, {
+          autoResize: true,
+          drawTitle: true,
+          backend: "svg",
+          defaultColorMusic: paper ? "#000000" : INK,
+          defaultColorTitle: paper ? "#000000" : INK,
+        });
         await osmd.load(api.libraryUrl(path));
         if (!cancelled) osmd.render();
       } catch (e) {
@@ -77,7 +111,7 @@ function MusicXml({ path }: { path: string }) {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, paper]);
 
   // Tap right/left half, or a Bluetooth page-turner pedal (arrow/PageDown keys), to scroll a screen.
   const turn = (d: number) => ref.current?.scrollBy({ top: d * ref.current.clientHeight * 0.85, behavior: "smooth" });
@@ -94,7 +128,7 @@ function MusicXml({ path }: { path: string }) {
     <>
       {error && <p className="error">{error}</p>}
       <div
-        className="score"
+        className={paper ? "score paper" : "score"}
         ref={ref}
         onClick={(e) => turn(e.clientX / (e.currentTarget as HTMLElement).clientWidth > 0.5 ? 1 : -1)}
       />

@@ -37,6 +37,7 @@ piano-companion = "piano_companion.main:run"
 fake-piano = "piano_companion.tools.fake_piano:main"
 piano-companion-seed = "piano_companion.seed:main"
 piano-companion-render = "piano_companion.render:main"
+piano-companion-demo = "piano_companion.tools.demo_data:main"
 
 [build-system]
 requires = ["hatchling"]
