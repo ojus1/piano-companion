@@ -1,8 +1,18 @@
 # Piano Companion
 
-A practice companion that lives on the piano. A Raspberry Pi 5 records every practice session from a Yamaha
-P-155 over USB-MIDI, tracks progress, and schedules practice with spaced repetition. A Galaxy Tab S6 Lite on the
-music rest shows the day's assignments, sheet music, the practice log and a live keyboard.
+A practice companion that lives on the piano. A Raspberry Pi 5 records every session from a digital piano over
+USB-MIDI, grades your playing, and schedules what to practise with spaced repetition. A tablet on the music rest
+is the screen.
+
+| | |
+|---|---|
+| ![Today](docs/screenshots/today.png) | ![Technique](docs/screenshots/technique.png) |
+| **Today**: what's due, your streak and daily goal. | **Technique**: random scale, arpeggio and chord drills, graded from MIDI. |
+| ![Progress](docs/screenshots/progress.png) | ![Technique trends](docs/screenshots/progress-technique.png) |
+| **Progress**: streaks with freezes, goals, XP, consistency. | **Trends**: accuracy, clean tempo and evenness per drill. |
+
+Also: a score library (MusicXML and annotatable PDF), a Record screen for performance takes, a session log with
+playback, and a live keyboard. Screenshots use demo data.
 
 - [docs/hardware.md](docs/hardware.md): what to buy (Indian retailers) and how it connects
 - [docs/architecture.md](docs/architecture.md): how the system fits together, and why
