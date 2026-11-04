@@ -4,8 +4,8 @@ Most Mutopia items in the research catalog are LilyPond source only. This turns 
 tablet can show/annotate and, when the source has a \\midi block, a reference MIDI for the player.
 
     sudo apt install lilypond          # on the Pi (bootstrap-pi.sh does this)
-    uv run piano-companion-render --research /mnt/project-files/research          # scheduled pieces
-    uv run piano-companion-render --research /mnt/project-files/research --all    # the whole catalog
+    uv run piano-companion-render --research ~/research          # scheduled pieces
+    uv run piano-companion-render --research ~/research --all    # the whole catalog
 
 MuseScore (.mscx) files are better exported on a laptop: `mscore -o score.musicxml file.mscx`, then
 upload through the Library.

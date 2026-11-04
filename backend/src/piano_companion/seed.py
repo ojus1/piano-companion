@@ -1,6 +1,6 @@
 """Import the research thread's curriculum and score catalog into the app.
 
-    uv run piano-companion-seed --research /mnt/project-files/research --stages S1
+    uv run piano-companion-seed --research ~/research --stages S1
 
 - Every row of library/catalog.json (and vgm_personal/catalog_vgm.json) becomes a Piece. Files the
   app can display or align (MusicXML, MIDI, PDF) are copied into the library; .ly/.mscx/.krn paths
