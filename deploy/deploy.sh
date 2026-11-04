@@ -18,6 +18,6 @@ rsync -az --delete "$ROOT/app/dist/" "$HOST:piano-companion/app/dist/"
 
 echo "==> Installing deps and restarting"
 ssh "$HOST" 'cd ~/piano-companion/backend \
-  && ~/.local/bin/uv sync --frozen --no-dev --extra hw -q \
+  && ~/.local/bin/uv sync --frozen --no-dev --extra hw --extra align -q \
   && sudo systemctl restart piano-companion \
   && sleep 2 && curl -fsS localhost:8000/api/status && echo'

@@ -105,8 +105,33 @@ class PieceIn(BaseModel):
 
 
 @router.get("/pieces")
-def list_pieces(db: Session = Depends(get_session)):
-    return db.exec(select(Piece).order_by(Piece.title)).all()
+def list_pieces(
+    q: str | None = None,
+    category: str | None = None,
+    max_henle: int | None = None,
+    has_score: bool = False,
+    limit: int = 200,
+    db: Session = Depends(get_session),
+):
+    stmt = select(Piece)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(col(Piece.title).ilike(like) | col(Piece.composer).ilike(like))
+    if category:
+        stmt = stmt.where(Piece.category == category)
+    if max_henle is not None:
+        stmt = stmt.where(col(Piece.level_henle) <= max_henle)
+    if has_score:
+        stmt = stmt.where(col(Piece.musicxml_path).is_not(None) | col(Piece.pdf_path).is_not(None))
+    return db.exec(stmt.order_by(Piece.level_henle, Piece.composer, Piece.title).limit(limit)).all()
+
+
+@router.get("/pieces/{pid}")
+def get_piece(pid: int, db: Session = Depends(get_session)):
+    p = db.get(Piece, pid)
+    if not p:
+        raise HTTPException(404)
+    return p
 
 
 @router.post("/pieces", status_code=201)
@@ -133,6 +158,26 @@ def upload_score(pid: int, file: UploadFile, db: Session = Depends(get_session))
     with dest.open("wb") as f:
         shutil.copyfileobj(file.file, f)
     setattr(p, f"{kind}_path", rel)
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+@router.put("/pieces/{pid}/annotated-pdf")
+async def save_annotated_pdf(pid: int, request: Request, db: Session = Depends(get_session)):
+    """The tablet's PDF viewer saves the score with annotations baked in; the original is kept."""
+    p = db.get(Piece, pid)
+    if not p:
+        raise HTTPException(404)
+    body = await request.body()
+    if not body.startswith(b"%PDF"):
+        raise HTTPException(415, "expected a PDF body")
+    rel = f"annotations/{pid}.pdf"
+    dest = get_settings().library_dir / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(body)
+    p.pdf_annotated_path = rel
     db.add(p)
     db.commit()
     db.refresh(p)
@@ -179,7 +224,15 @@ def practice_queue(limit: int = 10, db: Session = Depends(get_session)):
     now = utcnow()
     q = select(PracticeItem).where(PracticeItem.active, PracticeItem.due <= now).order_by(PracticeItem.due).limit(limit)
     items = db.exec(q).all()
-    return [{**i.model_dump(), "retrievability": round(srs.retrievability(i.srs_state, now), 3)} for i in items]
+    pieces = {p.id: p for p in db.exec(select(Piece).where(col(Piece.id).in_([i.piece_id for i in items])))}
+    return [
+        {
+            **i.model_dump(),
+            "retrievability": round(srs.retrievability(i.srs_state, i.kind, now), 3),
+            "piece": pieces.get(i.piece_id),
+        }
+        for i in items
+    ]
 
 
 @router.post("/practice/items/{iid}/review")
@@ -189,13 +242,99 @@ def review_item(iid: int, body: ReviewIn, db: Session = Depends(get_session)):
     item = db.get(PracticeItem, iid)
     if not item:
         raise HTTPException(404)
-    state, due, log = srs.grade(item.srs_state, body.rating)
+    return _apply_review(db, item, body.rating, body.session_id)
+
+
+def _apply_review(db: Session, item: PracticeItem, rating: int, session_id: int | None, extra: dict | None = None):
+    state, due, log = srs.grade(item.srs_state, rating, item.kind)
     item.srs_state, item.due = state, due
     db.add(item)
-    db.add(Review(practice_item_id=iid, session_id=body.session_id, rating=body.rating, log=log))
+    db.add(Review(practice_item_id=item.id, session_id=session_id, rating=rating, log=log | (extra or {})))
     db.commit()
     db.refresh(item)
     return item
+
+
+class AutoGradeIn(BaseModel):
+    session_id: int | None = None  # default: the most recent session
+    target_bpm: float | None = None  # current tempo-ladder rung; default from item details
+    measures: tuple[int, int] | None = None  # passage; default from item details
+    apply: bool = True  # False = just report the suggested grade
+
+
+@router.post("/practice/items/{iid}/autograde")
+def autograde_item(iid: int, body: AutoGradeIn, db: Session = Depends(get_session)):
+    """Align a recorded take to the item's score and grade it with the curriculum's rules."""
+    from .. import alignment
+    from ..grading import Thresholds, grade_attempt
+
+    if not alignment.available():
+        raise HTTPException(501, "install the backend with the `align` extra to enable auto-grading")
+    item = db.get(PracticeItem, iid)
+    piece = db.get(Piece, item.piece_id) if item and item.piece_id else None
+    if not piece:
+        raise HTTPException(404, "item has no piece")
+    score_rel = piece.musicxml_path or piece.midi_path
+    if not score_rel:
+        raise HTTPException(409, "piece has no MusicXML or MIDI score to align against")
+    if body.session_id:
+        sess = db.get(PracticeSession, body.session_id)
+    else:
+        sess = db.exec(select(PracticeSession).order_by(col(PracticeSession.started_at).desc())).first()
+    if not sess or not sess.midi_path:
+        raise HTTPException(404, "no recorded session")
+    s = get_settings()
+    target = body.target_bpm or item.details.get("target_bpm")
+    measures = body.measures or (tuple(item.details["measures"]) if item.details.get("measures") else None)
+    attempt, metrics = alignment.attempt_from_files(
+        s.library_dir / score_rel, s.recordings_dir / sess.midi_path, target, measures
+    )
+    from .. import curriculum
+
+    t = Thresholds.from_curriculum(curriculum.scheduler_defaults().get("grading", {}))
+    rating = grade_attempt(attempt, technique=item.kind == "technique", t=t)
+    sess.analysis = {**sess.analysis, f"item_{iid}": {"rating": rating, **metrics}}
+    sess.practice_item_id = iid
+    db.add(sess)
+    db.commit()
+    if body.apply:
+        _apply_review(db, item, rating, sess.id, {"auto": True, "metrics": metrics})
+    return {"rating": rating, "metrics": metrics, "session_id": sess.id, "applied": body.apply}
+
+
+# ---------- play MIDI on the piano itself ----------
+
+
+class PlayIn(BaseModel):
+    session_id: int | None = None
+    piece_id: int | None = None
+    tempo_scale: float = 1.0
+
+
+@router.post("/play")
+def play_on_piano(body: PlayIn, request: Request, db: Session = Depends(get_session)):
+    """Send a recorded take or a piece's reference MIDI to the P-155, which plays it with its own sound."""
+    rec = getattr(request.app.state, "recorder", None)
+    s = get_settings()
+    if body.session_id:
+        row = db.get(PracticeSession, body.session_id)
+        path = s.recordings_dir / row.midi_path if row and row.midi_path else None
+    else:
+        row = db.get(Piece, body.piece_id) if body.piece_id else None
+        path = s.library_dir / row.midi_path if row and row.midi_path else None
+    if not path or not path.is_file():
+        raise HTTPException(404, "no MIDI file")
+    if not rec or not rec.play(path, body.tempo_scale):
+        raise HTTPException(409, "piano not connected")
+    return {"playing": str(path.name)}
+
+
+@router.post("/play/stop")
+def stop_playing(request: Request):
+    rec = getattr(request.app.state, "recorder", None)
+    if rec:
+        rec.stop_playback()
+    return {"stopped": True}
 
 
 # ---------- progress ----------

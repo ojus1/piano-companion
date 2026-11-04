@@ -32,8 +32,9 @@ upload, and Bluetooth page-turner keys. If a native-only need shows up later, th
 with Capacitor.
 
 **Scores.** MusicXML is rendered by OpenSheetMusicDisplay, which reflows to the screen and can later drive a
-cursor from live MIDI ("follow along"). PDFs are rendered by pdf.js. Tap the right or left half of the score,
-or use a pedal, to turn pages.
+cursor from live MIDI ("follow along"). PDFs open in EmbedPDF, where you can annotate with the S Pen and save the
+markings back to the Pi. Reference and recorded MIDI play in the browser with a sampled grand piano, or through the
+P-155 itself.
 
 **Spaced repetition: FSRS.** Each practice item (scale, etude passage, sight-reading drill, piece section)
 is an FSRS card. You grade each attempt Again, Hard, Good or Easy, and FSRS sets the next due date. FSRS is the
@@ -42,6 +43,19 @@ queue. Later, grading can be automatic from MIDI metrics instead of self-reporte
 
 **Storage: SQLite plus files.** One user and one device, so there's no Postgres to look after. WAL mode
 holds up through power cuts. Back up by copying `~/piano-data`.
+
+## Curriculum and auto-grading
+
+The research thread's `curriculum.json` and score catalog are imported with `piano-companion-seed` (see
+remote-access.md). FSRS-6 parameters and per-deck retention (technique 0.85, passages 0.9, maintenance 0.8) come
+from that file. Sight-reading is scheduled daily rather than by FSRS, because the material is always fresh; the
+research plans Elo for it. **Auto-grade** aligns the last recorded take to the item's score with
+partitura and parangonar. It computes note accuracy, tempo ratio against the target BPM, timing deviation,
+stops/restarts and evenness, then applies the curriculum's Again/Hard/Good/Easy rules (`grading.py`). You can
+always override the grade with the buttons. Still to build from the research: the tempo ladder, Elo for
+sight-reading, BKT mastery gates on the concept graph, and FIRe implicit credit.
+
+Open-source components and the reasons for each choice are in [open-source.md](open-source.md).
 
 ## Where AI fits later
 
@@ -60,12 +74,18 @@ backend/src/piano_companion/
   midi_recorder.py   SessionSegmenter (pure, tested) + MidiCapture (ALSA port, hot-plug)
   audio_recorder.py  line-in to FLAC with 2 s pre-roll
   analysis.py        quick MIDI metrics (range, dynamics, pulse evenness)
-  srs.py             FSRS wrapper
+  srs.py             FSRS-6 decks configured from curriculum.json
+  curriculum.py      loads curriculum.json from the data dir
+  grading.py         curriculum grading rules: metrics -> Again/Hard/Good/Easy
+  alignment.py       partitura + parangonar score alignment -> attempt metrics
+  seed.py            piano-companion-seed: catalog + stages -> pieces + practice items
+  render.py          piano-companion-render: LilyPond -> PDF + MIDI
   service.py         wires capture → files → DB → WebSocket
   api/routes.py      REST + /api/live
   tools/fake_piano.py  plays a scale/MIDI file into a virtual port for testing
 app/src/
   api.ts, hooks.ts (live socket, wake lock), midi.ts (+ tests)
-  pages/Today, Library, Sessions, Live · components/ScoreViewer
+  pages/Today, Library, Sessions, Live
+  components/ScoreViewer (OSMD) · PdfScore (EmbedPDF + annotations) · MidiPlayer (smplr + piano roll)
 deploy/  bootstrap-pi.sh · deploy.sh · piano-companion.service
 ```

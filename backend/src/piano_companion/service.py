@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from datetime import datetime
+from pathlib import Path
 
+import mido
 from sqlmodel import Session
 
 from .config import Settings
 from .db import get_engine
-from .midi_recorder import FinishedSession, MidiCapture, SessionSegmenter
+from .midi_recorder import FinishedSession, MidiCapture, SessionSegmenter, find_output_port
 from .models import PracticeSession
 
 log = logging.getLogger(__name__)
@@ -52,12 +55,58 @@ class Recorder:
         if self.audio:
             self.audio.close()
 
+    # ---- playback on the piano's own sound engine (USB-MIDI is bidirectional) ----
+    _play_thread: threading.Thread | None = None
+    _play_stop = threading.Event()
+
+    def play(self, path: Path, tempo_scale: float = 1.0) -> bool:
+        name = find_output_port(self.settings.midi_input)
+        if not name:
+            return False
+        self.stop_playback()
+        stop = self._play_stop = threading.Event()
+
+        def run():
+            # Don't record our own playback as a practice session.
+            self.segmenter.paused = True
+            try:
+                with mido.open_output(name) as out:
+                    for msg in mido.MidiFile(path).play():
+                        if stop.is_set():
+                            break
+                        if not msg.is_meta:
+                            out.send(msg)
+                    out.reset()  # all notes off
+            except Exception:
+                log.exception("playback failed")
+            finally:
+                self.segmenter.paused = False
+
+        if tempo_scale != 1.0:
+            mid = mido.MidiFile(path)
+            for tr in mid.tracks:
+                for m in tr:
+                    m.time = int(m.time / tempo_scale)
+            tmp = self.settings.data_dir / "playback.mid"
+            mid.save(tmp)
+            path = tmp
+        self._play_thread = threading.Thread(target=run, name="midi-playback", daemon=True)
+        self._play_thread.start()
+        return True
+
+    def stop_playback(self) -> None:
+        self._play_stop.set()
+        if self._play_thread:
+            self._play_thread.join(timeout=2)
+            self._play_thread = None
+
     def status(self) -> dict:
         return {
             "midi_port": self.capture.port_name if self.capture else None,
             "midi_enabled": self.capture is not None,
             "recording": self.segmenter.active,
             "audio": self.audio is not None,
+            "playing": bool(self._play_thread and self._play_thread.is_alive()),
         }
 
     def _started(self, when: datetime) -> None:
