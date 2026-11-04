@@ -15,13 +15,25 @@ def utcnow() -> datetime:
 
 class Piece(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    # Stable id from the research catalog (catalog.json / catalog_vgm.json); None for manual uploads.
+    catalog_id: str | None = Field(default=None, index=True, unique=True)
     title: str
     composer: str | None = None
     arranger: str | None = None
+    category: str | None = None  # repertoire | etudes | technique | vgm | not_downloaded
+    level_henle: int | None = None
+    level_abrsm: int | None = None
+    skills: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    license: str | None = None
+    source_url: str | None = None
     # Library-relative paths of the score files (MusicXML preferred, PDF fallback).
     musicxml_path: str | None = None
     pdf_path: str | None = None
+    midi_path: str | None = None  # reference performance / alignment target
+    pdf_annotated_path: str | None = None  # the PDF with the user's pen/text annotations saved in
     tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    # Everything else from the catalog row (features, keys, unrendered .ly/.mscx paths, ...).
+    meta: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -29,8 +41,11 @@ class PracticeItem(SQLModel, table=True):
     """Anything that gets scheduled: a scale, an etude passage, a sight-reading drill, a piece section."""
 
     id: int | None = Field(default=None, primary_key=True)
-    kind: str = "exercise"  # exercise | piece_section | scale | chord | sight_reading | theory
+    kind: str = "exercise"  # technique | repertoire | vgm | theory | ear | sight_reading | improv | exercise | ...
     title: str
+    # Idempotency key for seeded items, e.g. "S1:technique:<catalog id>" or "concept:t_five_finger".
+    source_key: str | None = Field(default=None, index=True, unique=True)
+    stage: str | None = None  # curriculum stage id, S1..S7
     piece_id: int | None = Field(default=None, foreign_key="piece.id")
     # e.g. {"measures": [1, 8], "hands": "RH", "target_bpm": 80}
     details: dict = Field(default_factory=dict, sa_column=Column(JSON))

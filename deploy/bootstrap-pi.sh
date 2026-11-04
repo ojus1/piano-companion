@@ -8,7 +8,7 @@ sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   git curl rsync build-essential pkg-config \
   libasound2-dev libjack-jackd2-dev \
-  libportaudio2 libsndfile1 alsa-utils
+  libportaudio2 libsndfile1 alsa-utils lilypond
 
 echo "==> uv (Python toolchain)"
 if ! command -v uv >/dev/null && [ ! -x "$HOME/.local/bin/uv" ]; then

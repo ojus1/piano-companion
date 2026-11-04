@@ -3,12 +3,22 @@
 
 export interface Piece {
   id: number;
+  catalog_id?: string | null;
   title: string;
   composer?: string | null;
   arranger?: string | null;
+  category?: string | null;
+  level_henle?: number | null;
+  level_abrsm?: number | null;
+  skills: string[];
+  license?: string | null;
+  source_url?: string | null;
   musicxml_path?: string | null;
   pdf_path?: string | null;
+  pdf_annotated_path?: string | null;
+  midi_path?: string | null;
   tags: string[];
+  meta: Record<string, unknown>;
 }
 
 export interface PracticeItem {
@@ -16,9 +26,17 @@ export interface PracticeItem {
   kind: string;
   title: string;
   piece_id?: number | null;
+  stage?: string | null;
   details: Record<string, unknown>;
   due: string;
   retrievability?: number;
+  piece?: Piece | null;
+}
+
+export interface AutoGrade {
+  rating: 1 | 2 | 3 | 4;
+  metrics: Record<string, number | null>;
+  session_id: number;
 }
 
 export interface PracticeSession {
@@ -29,6 +47,7 @@ export interface PracticeSession {
   audio_path?: string | null;
   note_count: number;
   metrics: Record<string, number | null>;
+  analysis: Record<string, unknown>;
   notes?: string | null;
 }
 
@@ -68,7 +87,10 @@ export const api = {
     req<PracticeItem>(`/practice/items/${id}/review`, json("POST", { rating })),
   sessions: () => req<PracticeSession[]>("/sessions"),
   patchSession: (id: number, notes: string) => req<PracticeSession>(`/sessions/${id}`, json("PATCH", { notes })),
-  pieces: () => req<Piece[]>("/pieces"),
+  pieces: (q = "", category = "", hasScore = true) =>
+    req<Piece[]>(`/pieces?${new URLSearchParams({ q, category, has_score: String(hasScore) })}`),
+  autograde: (id: number, session_id?: number) =>
+    req<AutoGrade>(`/practice/items/${id}/autograde`, json("POST", { session_id })),
   addPiece: (title: string, composer: string) => req<Piece>("/pieces", json("POST", { title, composer })),
   uploadScore: (id: number, file: File) => {
     const fd = new FormData();

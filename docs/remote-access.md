@@ -34,6 +34,22 @@ the tablet needs for "install app" and keep-screen-on.
 - Install `uv`, Node 22+, `adb` (Android platform-tools) and `scrcpy` (`brew install scrcpy` /
   `sudo apt install scrcpy` / `winget install Genymobile.scrcpy`).
 
+## 2b. Load the curriculum and score library onto the Pi (once, then whenever the research updates)
+
+Copy the research thread's `research/` folder to the Pi (about 400 MB), then run:
+
+```bash
+rsync -a research/ piano-pi:research/
+ssh piano-pi 'cd ~/piano-companion/backend \
+  && .venv/bin/piano-companion-seed --research ~/research --stages S1 \
+  && .venv/bin/piano-companion-render --research ~/research'
+```
+
+`seed` imports all 692 catalog pieces (MusicXML/MIDI copied into `~/piano-data/library`), copies
+`curriculum.json` (FSRS parameters and grading rules), and schedules the S1 items. `render` turns the LilyPond-only
+scores of scheduled pieces into PDF and MIDI, which takes about 2 minutes on a laptop and longer on the Pi. Both
+commands are safe to run again. Add the next stage later with `--stages S2`.
+
 ## 3. Set up the tablet (once)
 
 1. Install **Tailscale** from the Play Store and log in with the same account. Turn on "Always-on VPN" for it

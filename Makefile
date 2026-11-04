@@ -10,7 +10,7 @@ dev-app:          ## vite dev server with hot reload; proxies /api to the Pi (ov
 	cd app && npm run dev
 
 test:
-	cd backend && uv run ruff check src tests && uv run pytest -q
+	cd backend && uv run --extra align ruff check src tests && uv run --extra align pytest -q
 	cd app && npm run typecheck && npm test
 
 deploy:

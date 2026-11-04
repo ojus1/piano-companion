@@ -67,3 +67,11 @@ audio { width: 100%; }
 .keyboard .black { position: absolute; top: 0; height: 62%; background: #222; border-radius: 0 0 3px 3px; z-index: 1; }
 .keyboard .down { background: var(--accent) !important; }
 @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } .status { display: none; } }
+select { font: inherit; min-height: 48px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.player { display: flex; flex-direction: column; gap: 8px; }
+.roll { width: 100%; height: 90px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.viewer-player { padding: 8px 16px; border-bottom: 1px solid var(--line); }
+.pdf-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.pdf-actions { padding: 8px 16px; }
+.pdf-viewer { flex: 1; min-height: 0; position: relative; }
+.pdf-viewer > * { position: absolute; inset: 0; height: 100%; }
