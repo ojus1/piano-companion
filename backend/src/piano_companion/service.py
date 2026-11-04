@@ -15,6 +15,7 @@ from .config import Settings
 from .db import get_engine
 from .midi_recorder import FinishedSession, MidiCapture, SessionSegmenter, find_output_port
 from .models import PracticeSession
+from .retention import enforce_recordings_cap
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class Recorder:
             self.capture = MidiCapture(self.segmenter, settings.midi_input, loop)
 
     def start(self) -> None:
+        self.enforce_cap()
         if self.capture:
             self.capture.start()
 
@@ -54,6 +56,12 @@ class Recorder:
             self.segmenter.flush()
         if self.audio:
             self.audio.close()
+
+    def enforce_cap(self) -> None:
+        try:
+            enforce_recordings_cap(self.settings.recordings_dir, self.settings.recordings_max_mb * 1_000_000)
+        except Exception:
+            log.exception("recordings cap check failed")
 
     # ---- playback on the piano's own sound engine (USB-MIDI is bidirectional) ----
     _play_thread: threading.Thread | None = None
@@ -139,3 +147,4 @@ class Recorder:
             log.info("saved session %s (%d notes)", row.id, row.note_count)
             if self.capture:
                 self.capture.broadcast({"type": "session", "state": "saved", "id": row.id})
+        self.enforce_cap()

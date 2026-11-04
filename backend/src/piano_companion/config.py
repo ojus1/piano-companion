@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     session_idle_seconds: float = 90.0
     # Sessions shorter than this (in notes) are discarded as noise (a cat on the keys).
     session_min_notes: int = 8
+    # Disk cap for ~/piano-data/recordings. Oldest files are deleted past this; 0 disables.
+    recordings_max_mb: int = 500
 
     # Audio line-in capture alongside MIDI. Off by default: MIDI is the primary signal.
     audio_enabled: bool = False
