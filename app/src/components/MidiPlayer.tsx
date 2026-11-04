@@ -13,7 +13,7 @@ import { CacheStorage, SplendidGrandPiano } from "smplr";
 interface Props {
   url: string;
   title?: string;
-  playOnPiano?: { session_id?: number; piece_id?: number };
+  playOnPiano?: { session_id?: number; piece_id?: number; performance_id?: number };
 }
 
 interface N {

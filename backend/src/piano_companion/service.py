@@ -13,8 +13,15 @@ from sqlmodel import Session
 
 from .config import Settings
 from .db import get_engine
-from .midi_recorder import FinishedSession, MidiCapture, SessionSegmenter, find_output_port
-from .models import PracticeSession
+from .midi_recorder import (
+    FinishedSession,
+    FinishedTake,
+    MidiCapture,
+    SessionSegmenter,
+    TakeRecorder,
+    find_output_port,
+)
+from .models import Performance, PracticeSession
 from .retention import enforce_recordings_cap
 
 log = logging.getLogger(__name__)
@@ -40,9 +47,10 @@ class Recorder:
             on_finished=self._save,
             on_started=self._started,
         )
+        self.take = TakeRecorder(settings.performances_dir, settings.take_idle_seconds, self._take_auto_stopped)
         self.capture: MidiCapture | None = None
         if settings.midi_enabled:
-            self.capture = MidiCapture(self.segmenter, settings.midi_input, loop)
+            self.capture = MidiCapture(self.segmenter, settings.midi_input, loop, take=self.take)
 
     def start(self) -> None:
         self.enforce_cap()
@@ -54,6 +62,8 @@ class Recorder:
             self.capture.stop()
         else:
             self.segmenter.flush()
+        if self.take.active:  # service restart mid-take: keep what was played
+            self._save_take(self.take.stop())
         if self.audio:
             self.audio.close()
 
@@ -115,7 +125,59 @@ class Recorder:
             "recording": self.segmenter.active,
             "audio": self.audio is not None,
             "playing": bool(self._play_thread and self._play_thread.is_alive()),
+            "take": self.take.info(),
         }
+
+    # ---- performance / cover takes ----
+
+    def start_take(self, title: str, kind: str, piece_id: int | None) -> bool:
+        if self.take.active:
+            return False
+        self.stop_playback()
+        self.segmenter.end_active()  # whatever was being practised becomes its own session
+        ok = self.take.start(title, kind, piece_id)
+        if ok:
+            self._broadcast({"type": "take", "state": "started", **(self.take.info() or {})})
+        return ok
+
+    def stop_take(self) -> Performance | None:
+        row = self._save_take(self.take.stop())
+        self._broadcast({"type": "take", "state": "saved" if row else "empty", "id": row.id if row else None})
+        return row
+
+    def cancel_take(self) -> bool:
+        had = self.take.cancel()
+        if had:
+            self._broadcast({"type": "take", "state": "cancelled"})
+        return had
+
+    def _take_auto_stopped(self, ft: FinishedTake | None) -> None:
+        row = self._save_take(ft)
+        self._broadcast({"type": "take", "state": "saved" if row else "empty", "id": row.id if row else None})
+
+    def _save_take(self, ft: FinishedTake | None) -> Performance | None:
+        if ft is None:
+            return None
+        with Session(get_engine()) as db:
+            row = Performance(
+                title=ft.title,
+                kind=ft.kind,
+                piece_id=ft.piece_id,
+                started_at=ft.started_at,
+                duration_s=ft.duration_s,
+                midi_path=str(ft.midi_path.relative_to(self.settings.performances_dir)),
+                note_count=ft.note_count,
+                metrics=ft.metrics | ({"auto_stopped": True} if ft.auto_stopped else {}),
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            log.info("saved take %s %r (%d notes)", row.id, row.title, row.note_count)
+            return row
+
+    def _broadcast(self, event: dict) -> None:
+        if self.capture:
+            self.capture.broadcast(event)
 
     def _started(self, when: datetime) -> None:
         if self.capture:

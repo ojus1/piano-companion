@@ -8,6 +8,8 @@ export interface LiveState {
   recording: boolean;
   held: ReadonlySet<number>;
   lastSavedSession: number | null;
+  /** Bumps whenever a performance take starts, stops or is saved, so the Record screen refreshes. */
+  takeEvent: number;
 }
 
 /** WebSocket to the Pi's live MIDI stream, reconnecting with backoff (the Pi may reboot). */
@@ -18,6 +20,7 @@ export function useLive(): LiveState {
     recording: false,
     held: new Set(),
     lastSavedSession: null,
+    takeEvent: 0,
   });
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -38,6 +41,7 @@ export function useLive(): LiveState {
             return ev.state === "started"
               ? { ...p, recording: true }
               : { ...p, recording: false, lastSavedSession: ev.id };
+          if (ev.type === "take") return { ...p, takeEvent: p.takeEvent + 1 };
           if (ev.type === "note_on" || ev.type === "note_off") return { ...p, held: applyMidiEvent(p.held, ev) };
           return p;
         });

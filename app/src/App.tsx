@@ -4,8 +4,9 @@ import Today from "./pages/Today";
 import Library from "./pages/Library";
 import Sessions from "./pages/Sessions";
 import Live from "./pages/Live";
+import Record from "./pages/Record";
 
-const TABS = ["Today", "Library", "Sessions", "Live"] as const;
+const TABS = ["Today", "Library", "Record", "Sessions", "Live"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
       <main>
         {tab === "Today" && <Today lastSaved={live.lastSavedSession} />}
         {tab === "Library" && <Library />}
+        {tab === "Record" && <Record held={live.held} takeEvent={live.takeEvent} pianoConnected={!!live.midiPort} />}
         {tab === "Sessions" && <Sessions lastSaved={live.lastSavedSession} />}
         {tab === "Live" && <Live held={live.held} />}
       </main>

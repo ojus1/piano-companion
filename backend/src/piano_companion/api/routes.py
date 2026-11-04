@@ -22,7 +22,7 @@ from sqlmodel import Session, col, select
 from .. import srs
 from ..config import get_settings
 from ..db import get_session
-from ..models import Piece, PracticeItem, PracticeSession, Review, utcnow
+from ..models import Performance, Piece, PracticeItem, PracticeSession, Review, utcnow
 
 router = APIRouter(prefix="/api")
 
@@ -92,6 +92,113 @@ def session_file(sid: int, kind: str, db: Session = Depends(get_session)):
     if not rel:
         raise HTTPException(404)
     return FileResponse(_safe_join(get_settings().recordings_dir, rel))
+
+
+# ---------- performance / cover takes (Record screen) ----------
+
+
+class TakeIn(BaseModel):
+    title: str = ""
+    kind: str = "performance"  # performance | cover
+    piece_id: int | None = None
+
+
+class PerformancePatch(BaseModel):
+    title: str | None = None
+    kind: str | None = None
+    piece_id: int | None = None
+    favorite: bool | None = None
+    notes: str | None = None
+
+
+TAKE_KINDS = {"performance", "cover"}
+
+
+def _recorder(request: Request):
+    rec = getattr(request.app.state, "recorder", None)
+    if rec is None:
+        raise HTTPException(503, "recorder not running")
+    return rec
+
+
+@router.get("/performances")
+def list_performances(limit: int = 100, db: Session = Depends(get_session)):
+    q = select(Performance).order_by(col(Performance.started_at).desc()).limit(limit)
+    return db.exec(q).all()
+
+
+@router.post("/performances/start")
+def start_take(body: TakeIn, request: Request):
+    if body.kind not in TAKE_KINDS:
+        raise HTTPException(422, f"kind must be one of {sorted(TAKE_KINDS)}")
+    rec = _recorder(request)
+    title = body.title.strip() or f"Untitled {body.kind}, {datetime.now().astimezone():%b %d %H:%M}"
+    if not rec.start_take(title, body.kind, body.piece_id):
+        raise HTTPException(409, "a take is already recording")
+    return rec.take.info()
+
+
+@router.post("/performances/stop")
+def stop_take(request: Request):
+    """Save the take. `performance` is null when nothing was played."""
+    rec = _recorder(request)
+    if not rec.take.active:
+        raise HTTPException(409, "no take is recording")
+    return {"performance": rec.stop_take()}
+
+
+@router.post("/performances/cancel")
+def cancel_take(request: Request):
+    return {"cancelled": _recorder(request).cancel_take()}
+
+
+@router.get("/performances/{pid}")
+def get_performance(pid: int, db: Session = Depends(get_session)):
+    row = db.get(Performance, pid)
+    if not row:
+        raise HTTPException(404)
+    return row
+
+
+@router.patch("/performances/{pid}")
+def patch_performance(pid: int, body: PerformancePatch, db: Session = Depends(get_session)):
+    row = db.get(Performance, pid)
+    if not row:
+        raise HTTPException(404)
+    patch = body.model_dump(exclude_unset=True)
+    if "kind" in patch and patch["kind"] not in TAKE_KINDS:
+        raise HTTPException(422, f"kind must be one of {sorted(TAKE_KINDS)}")
+    if "title" in patch and not (patch["title"] or "").strip():
+        raise HTTPException(422, "title cannot be empty")
+    for k, v in patch.items():
+        setattr(row, k, v)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/performances/{pid}", status_code=204)
+def delete_performance(pid: int, db: Session = Depends(get_session)):
+    row = db.get(Performance, pid)
+    if not row:
+        raise HTTPException(404)
+    if row.midi_path:
+        base = get_settings().performances_dir.resolve()
+        f = (base / row.midi_path).resolve()
+        if f.is_relative_to(base):
+            f.unlink(missing_ok=True)
+    db.delete(row)
+    db.commit()
+
+
+@router.get("/performances/{pid}/midi")
+def performance_midi(pid: int, db: Session = Depends(get_session)):
+    row = db.get(Performance, pid)
+    if not row or not row.midi_path:
+        raise HTTPException(404)
+    safe = "".join(c if c.isalnum() or c in " -_.,()" else "_" for c in row.title).strip() or "take"
+    return FileResponse(_safe_join(get_settings().performances_dir, row.midi_path), filename=f"{safe}.mid")
 
 
 # ---------- library (pieces + score files) ----------
@@ -308,6 +415,7 @@ def autograde_item(iid: int, body: AutoGradeIn, db: Session = Depends(get_sessio
 class PlayIn(BaseModel):
     session_id: int | None = None
     piece_id: int | None = None
+    performance_id: int | None = None
     tempo_scale: float = 1.0
 
 
@@ -316,9 +424,14 @@ def play_on_piano(body: PlayIn, request: Request, db: Session = Depends(get_sess
     """Send a recorded take or a piece's reference MIDI to the P-155, which plays it with its own sound."""
     rec = getattr(request.app.state, "recorder", None)
     s = get_settings()
+    if rec and rec.take.active:
+        raise HTTPException(409, "a take is recording")
     if body.session_id:
         row = db.get(PracticeSession, body.session_id)
         path = s.recordings_dir / row.midi_path if row and row.midi_path else None
+    elif body.performance_id:
+        perf = db.get(Performance, body.performance_id)
+        path = s.performances_dir / perf.midi_path if perf and perf.midi_path else None
     else:
         row = db.get(Piece, body.piece_id) if body.piece_id else None
         path = s.library_dir / row.midi_path if row and row.midi_path else None

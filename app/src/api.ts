@@ -58,11 +58,36 @@ export interface Stats {
   sessions: number;
 }
 
+export type TakeKind = "performance" | "cover";
+
+export interface TakeInfo {
+  title: string;
+  kind: TakeKind;
+  piece_id?: number | null;
+  started_at: string;
+  note_count: number;
+}
+
+export interface Performance {
+  id: number;
+  title: string;
+  kind: TakeKind;
+  piece_id?: number | null;
+  started_at: string;
+  duration_s: number;
+  midi_path?: string | null;
+  note_count: number;
+  metrics: Record<string, number | boolean | null>;
+  favorite: boolean;
+  notes?: string | null;
+}
+
 export interface Status {
   midi_port?: string | null;
   midi_enabled: boolean;
   recording?: boolean;
   audio?: boolean;
+  take?: TakeInfo | null;
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -97,6 +122,17 @@ export const api = {
     fd.append("file", file);
     return req<Piece>(`/pieces/${id}/files`, { method: "POST", body: fd });
   },
+  performances: () => req<Performance[]>("/performances"),
+  startTake: (title: string, kind: TakeKind) => req<TakeInfo>("/performances/start", json("POST", { title, kind })),
+  stopTake: () => req<{ performance: Performance | null }>("/performances/stop", { method: "POST" }),
+  cancelTake: () => req<{ cancelled: boolean }>("/performances/cancel", { method: "POST" }),
+  patchPerformance: (id: number, patch: Partial<Pick<Performance, "title" | "kind" | "favorite" | "notes">>) =>
+    req<Performance>(`/performances/${id}`, json("PATCH", patch)),
+  deletePerformance: async (id: number) => {
+    const r = await fetch(`/api/performances/${id}`, { method: "DELETE" });
+    if (!r.ok) throw new Error(`DELETE /performances/${id}: ${r.status}`);
+  },
+  performanceMidiUrl: (id: number) => `/api/performances/${id}/midi`,
   libraryUrl: (rel: string) => `/api/library/${rel}`,
   sessionFileUrl: (id: number, kind: "midi" | "audio") => `/api/sessions/${id}/${kind}`,
 };

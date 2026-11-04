@@ -80,3 +80,23 @@ class Review(SQLModel, table=True):
     rating: int  # 1 Again, 2 Hard, 3 Good, 4 Easy (FSRS)
     reviewed_at: datetime = Field(default_factory=utcnow)
     log: dict = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class Performance(SQLModel, table=True):
+    """A deliberate take (a performance of a piece or a cover), recorded from the Record screen.
+
+    Separate from PracticeSession so these are never trimmed by the recordings cap: the files live
+    in `performances_dir`, outside `recordings_dir`, and only an explicit delete removes them.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    title: str
+    kind: str = "performance"  # performance | cover
+    piece_id: int | None = Field(default=None, foreign_key="piece.id")
+    started_at: datetime = Field(default_factory=utcnow, index=True)
+    duration_s: float = 0.0
+    midi_path: str | None = None  # relative to performances_dir
+    note_count: int = 0
+    metrics: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    favorite: bool = False
+    notes: str | None = None

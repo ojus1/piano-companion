@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Disk cap for ~/piano-data/recordings. Oldest files are deleted past this; 0 disables.
     recordings_max_mb: int = 500
 
+    # A performance take that nobody stops is saved after this many seconds of silence.
+    take_idle_seconds: float = 300.0
+
     # Audio line-in capture alongside MIDI. Off by default: MIDI is the primary signal.
     audio_enabled: bool = False
     audio_device: str | None = None  # sounddevice name substring, e.g. "USB Audio CODEC"
@@ -46,8 +49,13 @@ class Settings(BaseSettings):
     def library_dir(self) -> Path:
         return self.data_dir / "library"
 
+    @property
+    def performances_dir(self) -> Path:
+        # Kept outside recordings_dir on purpose: the recordings size cap must never touch these.
+        return self.data_dir / "performances"
+
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.recordings_dir, self.library_dir):
+        for d in (self.data_dir, self.recordings_dir, self.library_dir, self.performances_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

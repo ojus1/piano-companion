@@ -75,3 +75,17 @@ select { font: inherit; min-height: 48px; padding: 0 12px; border-radius: 10px; 
 .pdf-actions { padding: 8px 16px; }
 .pdf-viewer { flex: 1; min-height: 0; position: relative; }
 .pdf-viewer > * { position: absolute; inset: 0; height: 100%; }
+.take-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.take-panel.live { border-color: var(--bad); }
+.take-clock { font-size: 2.4em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.record-btn { background: var(--bad); color: #fff; border-color: var(--bad); font-weight: 700; min-width: 160px; justify-content: center; }
+.record-btn.stop { background: var(--text); color: var(--bg); border-color: var(--text); }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.segmented button { border: none; border-radius: 0; background: transparent; }
+.segmented button.active { background: var(--accent); color: #fff; font-weight: 600; }
+.grow { flex: 1; min-width: 0; }
+.title-input { font-weight: 600; border-color: transparent; background: transparent; padding: 0 8px; }
+.title-input:focus { border-color: var(--line); background: var(--bg); }
+.star { border: none; background: transparent; font-size: 1.4em; padding: 0 8px; color: var(--muted); }
+.star.on { color: var(--accent); }
+button.danger { border-color: var(--bad); color: var(--bad); }
